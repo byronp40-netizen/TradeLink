@@ -27,3 +27,6 @@ dist-ssr
 
 *.tsbuildinfo
 .eslintcache
+
+.vercel
+.env*.local
