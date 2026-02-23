@@ -1,100 +1,47 @@
-export type UserType = 'customer' | 'tradesperson';
+// src/types/index.ts
+export type JobStatus = "open" | "assigned" | "in_progress" | "completed" | "cancelled";
 
-export type TradeCategory = 
-  | 'Plumbing'
-  | 'Electrical'
-  | 'Carpentry'
-  | 'Painting & Decorating'
-  | 'Building & Construction'
-  | 'Roofing'
-  | 'Heating & Gas'
-  | 'Plastering'
-  | 'Tiling'
-  | 'Landscaping'
-  | 'Glazing';
-
-export type JobStatus = 
-  | 'draft'
-  | 'pending_quotes'
-  | 'quotes_received'
-  | 'contractor_selected'
-  | 'in_progress'
-  | 'completed'
-  | 'reviewed';
-
-export type UrgencyLevel = 'emergency' | 'urgent' | 'normal' | 'flexible';
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  type: UserType;
-  avatar?: string;
-  trades?: TradeCategory[];
-  county?: string;
-  rating?: number;
-  completedJobs?: number;
-  createdAt: Date;
+export interface Profile {
+id: string;
+full_name?: string | null;
+email?: string | null;
+role?: "customer" | "tradesperson";
+phone?: string | null;
+location?: string | null;
+bio?: string | null;
+created_at?: string | null;
 }
 
 export interface Job {
-  id: string;
-  customerId: string;
-  title: string;
-  description: string;
-  originalDescription: string;
-  tradeCategories: TradeCategory[];
-  status: JobStatus;
-  urgency: UrgencyLevel;
-  county: string;
-  eircode?: string;
-  address: string;
-  images?: string[];
-  createdAt: Date;
-  updatedAt: Date;
-  selectedQuoteId?: string;
-  preferredStartDate?: Date;
-  estimatedDuration?: string;
+id?: string;
+title: string;
+description?: string | null;
+status?: JobStatus;
+created_at?: string | null;
+updated_at?: string | null;
+customer_id?: string | null;
+trade_type?: string | null;
+location?: string | null;
+budget?: number | null;
 }
 
 export interface Quote {
-  id: string;
-  jobId: string;
-  tradespersonId: string;
-  amount: number;
-  currency: string;
-  description: string;
-  estimatedDuration: string;
-  startDate: Date;
-  validUntil: Date;
-  status: 'pending' | 'accepted' | 'declined';
-  createdAt: Date;
+id?: string;
+job_id: string;
+tradesperson_id: string;
+price?: number | null;
+message?: string | null;
+status?: "pending" | "accepted" | "rejected" | "withdrawn";
+created_at?: string | null;
+updated_at?: string | null;
 }
 
 export interface Message {
-  id: string;
-  jobId: string;
-  senderId: string;
-  receiverId: string;
-  content: string;
-  createdAt: Date;
-  read: boolean;
-}
-
-export interface Review {
-  id: string;
-  jobId: string;
-  reviewerId: string;
-  reviewedId: string;
-  rating: number;
-  comment: string;
-  createdAt: Date;
-}
-
-export interface AIAnalysis {
-  recommendedTrades: TradeCategory[];
-  confidence: number;
-  reasoning: string;
-  suggestedQuestions: string[];
+id?: string;
+job_id: string;
+sender_id: string;
+recipient_id: string;
+body?: string | null;
+read?: boolean;
+created_at?: string | null;
 }
