@@ -1,5 +1,5 @@
 // api/jobs.js
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "/node_modules/.vite/deps/@supabase_supabase-js.js?v=61681313";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
