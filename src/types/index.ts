@@ -1,7 +1,7 @@
 // src/types/index.ts
-export type JobStatus = "open" | "assigned" | "in_progress" | "completed" | "cancelled";
+export type JobStatus = "open" | "assigned" | "in_progress" | "completed" | "cancelled" | "new" | "pending";
 
-export interface Profile {
+export interface User {
 id: string;
 full_name?: string | null;
 email?: string | null;
