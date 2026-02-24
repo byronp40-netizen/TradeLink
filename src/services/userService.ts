@@ -1,4 +1,4 @@
-import { User } from '@/types';
+import type { User } from '@/types';
 
 // In-memory data store
 let users: User[] = [

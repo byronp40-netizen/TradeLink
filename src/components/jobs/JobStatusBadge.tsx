@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { JobStatus } from '@/types';
+import type { JobStatus } from '@/types';
 import { 
   FileText, 
   Clock, 

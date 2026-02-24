@@ -1,0 +1,19 @@
+To get the source code for TradeLink onto your own computer, you can typically find a Download or Export button in the top-right corner of this interface (usually look for a cloud icon or a downward arrow).
+
+Once you download the files, here is what you need to know to get it running on your machine:
+
+1. What's in the box?
+When you download the project, you’ll get a ZIP file containing all the folders and files we've discussed. This includes the React components, the styling (Tailwind CSS), and the logic that makes the app work.
+
+2. How to run it locally
+Since this is a professional web application, it needs a small "engine" to run on your computer.
+
+Install Node.js: Download and install Node.js (it's the standard environment for running modern web apps).
+Open the project: Unzip the folder and open it in a code editor like VS Code.
+Install Dependencies: Open your computer's terminal (or command prompt) inside that folder and type: npm install
+Start the app: Then type: npm run dev
+View it: Your terminal will give you a link (usually http://localhost:5173) that you can open in your browser to see TradeLink running locally!
+3. Can I just copy-paste?
+Absolutely. If you only need a specific part (like the JobCreationFlow.tsx component), you can simply click on that file in the sidebar to your left, select the code, and copy it directly into your own project.
+
+Would you like me to walk you through how to set up a specific part of the code, or are you ready to take the whole project for a spin?

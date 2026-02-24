@@ -1,4 +1,4 @@
-import { Message } from '@/types';
+import type { Message } from '@/types';
 
 // In-memory data store
 let messages: Message[] = [

@@ -1,4 +1,4 @@
-import { Review } from '@/types';
+import type { Review } from '@/types';
 
 // In-memory data store
 let reviews: Review[] = [

@@ -1,4 +1,4 @@
-import { Quote } from '@/types';
+import type { Quote } from '@/types';
 
 // In-memory data store
 let quotes: Quote[] = [
