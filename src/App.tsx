@@ -8,7 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import CreateJob from "@/pages/CreateJob";
 import JobDetail from "@/pages/JobDetail";
 import NotFound from "@/pages/NotFound";
-
+import ContractorDashboard from "@/pages/ContractorDashboard";
 const queryClient = new QueryClient();
 
 function App() {
@@ -21,6 +21,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<Dashboard />} />
+	    <Route path="/contractorDashboard" element={<ContractorDashboard />} />
             <Route path="/create-job" element={<CreateJob />} />
             <Route path="/jobs/:jobId" element={<JobDetail />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
