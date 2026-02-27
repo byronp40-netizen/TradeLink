@@ -1,13 +1,6 @@
 // src/pages/ContractorDashboard.tsx
 import React, { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_ANON = process.env.REACT_APP_SUPABASE_ANON || process.env.VITE_SUPABASE_ANON || process.env.SUPABASE_ANON_KEY;
-
-// You probably already have a single shared supabase client in your app.
-// If so, import that instead of creating a new client here.
-const supabase = createClient(String(SUPABASE_URL), String(SUPABASE_ANON));
+import { supabase } from "../lib/supabaseClient";
 
 type Job = {
   id: string;
@@ -30,79 +23,70 @@ const ContractorDashboard: React.FC = () => {
 
   useEffect(() => {
     loadProfileAndJobs();
-    // Optionally subscribe to real-time changes with supabase.channel for jobs table updates
-    // return unsubscribe
+    // Optionally subscribe to real-time changes:
+    // const subscription = supabase
+    //   .channel('public:jobs')
+    //   .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, payload => {
+    //     loadJobs(); // re-load or patch state
+    //   })
+    //   .subscribe();
+    //
+    // return () => { supabase.removeChannel(subscription); };
   }, []);
 
   async function loadProfileAndJobs() {
     setLoading(true);
-    setError(null);
     try {
+      // Get current user profile
       const {
         data: { user },
-        error: userErr,
       } = await supabase.auth.getUser();
 
-      if (userErr || !user) {
-        setError("Not signed in");
+      if (!user) {
+        setProfile(null);
+        await loadJobs(null);
         setLoading(false);
         return;
       }
 
-      const userId = user.id;
-
-      // load contractor profile
-      const { data: prof, error: profErr } = await supabase
-        .from("contractor_profiles")
+      // If you store profiles in the profiles table:
+      const { data: profileData, error: profileErr } = await supabase
+        .from("profiles")
         .select("*")
-        .eq("id", userId)
+        .eq("id", user.id)
         .single();
 
-      if (profErr) {
-        // If no profile exists, prof will be null
-        setProfile(null);
-        console.warn("No contractor profile found:", profErr.message || profErr);
+      if (profileErr) {
+        console.warn("Profile fetch error", profileErr);
       } else {
-        setProfile(prof);
+        setProfile(profileData);
       }
 
-      // Build trades to match
-      const tradesToMatch: string[] = [];
-      if (prof?.primary_trade) tradesToMatch.push(prof.primary_trade);
-      if (Array.isArray(prof?.secondary_trades)) tradesToMatch.push(...prof.secondary_trades);
-
-      // If no profile/trades, optionally show empty state
-      if (tradesToMatch.length === 0) {
-        // If there is no profile/trades, show all open jobs or instruct to create profile
-        const { data: allJobs, error: allErr } = await supabase
-          .from("jobs")
-          .select("*")
-          .eq("status", "open")
-          .order("created_at", { ascending: false })
-          .limit(200);
-
-        if (allErr) throw allErr;
-        setJobs(allJobs || []);
-        setLoading(false);
-        return;
-      }
-
-      // Query jobs where status=open AND suggested_trades overlaps tradesToMatch
-      const { data: matchedJobs, error: jobsErr } = await supabase
-        .from("jobs")
-        .select("*")
-        .eq("status", "open")
-        .overlaps("suggested_trades", tradesToMatch) // uses Postgres && operator
-        .order("created_at", { ascending: false })
-        .limit(200);
-
-      if (jobsErr) throw jobsErr;
-      setJobs(matchedJobs || []);
+      await loadJobs(profileData?.primary_trade ?? null);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || "Failed to load jobs");
+      setError(String(err.message ?? err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadJobs(tradeFilter: string | null) {
+    try {
+      let q = supabase.from("jobs").select("*").order("created_at", { ascending: false }).limit(200);
+      if (tradeFilter) {
+        q = q.eq("primary_trade", tradeFilter);
+      } else {
+        // Optionally: filter to open jobs only
+        q = q.eq("status", "open");
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+      setJobs(data ?? []);
+    } catch (err: any) {
+      console.error("loadJobs error", err);
+      setError(String(err.message ?? err));
     }
   }
 
@@ -110,93 +94,84 @@ const ContractorDashboard: React.FC = () => {
     setAcceptingJobId(jobId);
     setError(null);
     try {
-      const { data, error } = await fetch("/api/jobs/accept", {
+      // Get current user id from client auth
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) throw new Error("Not signed in");
+
+      const res = await fetch("/api/jobs/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jobId,
-          contractorId: (await supabase.auth.getUser()).data.user?.id,
+          contractorId: user.id,
         }),
-      }).then((r) => r.json());
+      });
 
-      if (data?.error || data?.status === "error") {
-        throw new Error(data?.error || "Could not accept job");
+      const payload = await res.json();
+      if (!res.ok || payload?.error) {
+        throw new Error(payload?.error ?? "Failed to accept job");
       }
 
-      // Quick refresh
-      await loadProfileAndJobs();
+      // Refresh jobs after accept
+      await loadJobs(profile?.primary_trade ?? null);
     } catch (err: any) {
-      console.error("Accept job failed:", err);
-      setError(err?.message || "Failed to accept job");
+      console.error(err);
+      setError(String(err.message ?? err));
     } finally {
       setAcceptingJobId(null);
     }
   }
 
+  if (loading) return <div className="p-6">Loading contractor dashboard…</div>;
+  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h2 className="text-lg font-semibold mb-4">Contractor Dashboard</h2>
+      <h2 className="text-2xl font-semibold mb-4">Contractor Dashboard</h2>
+      <p className="text-sm text-slate-600 mb-4">Jobs available{profile?.primary_trade ? ` for ${profile.primary_trade}` : ""}</p>
 
-      {loading ? (
-        <div>Loading...</div>
-      ) : error ? (
-        <div className="text-red-600">Error: {error}</div>
-      ) : (
-        <>
-          {!profile && (
-            <div className="mb-4 rounded-md bg-yellow-50 border border-yellow-100 p-3">
-              <strong>No contractor profile found.</strong> Please complete your contractor profile to get trade-specific job matches.
-            </div>
-          )}
+      {jobs.length === 0 && <div className="text-sm text-slate-500">No jobs currently available.</div>}
 
-          {jobs.length === 0 ? (
-            <div className="text-slate-600">No open jobs found for your trades right now.</div>
-          ) : (
-            <div className="grid gap-4">
-              {jobs.map((job) => (
-                <div key={job.id} className="border rounded-md p-4 shadow-sm">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-md font-semibold">{job.title}</h3>
-                      <div className="text-sm text-slate-600">{job.location || "Location not specified"}</div>
-                    </div>
-                    <div className="text-sm text-slate-500">{new Date(job.created_at).toLocaleString()}</div>
-                  </div>
-
-                  <p className="mt-2 text-sm text-slate-700">{job.description}</p>
-
+      <ul className="space-y-4">
+        {jobs.map((job) => (
+          <li key={job.id} className="p-4 border rounded">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-medium">{job.title}</h3>
+                <div className="text-sm text-slate-600">{job.description}</div>
+                <div className="mt-2 text-xs text-slate-500">
+                  {job.location ? `${job.location} • ` : ""}
+                  {job.budget ? `€${job.budget}` : "No budget provided"}
+                </div>
+                <div className="mt-2">
                   {Array.isArray(job.suggested_trades) && job.suggested_trades.length > 0 && (
-                    <div className="mt-3 flex gap-2 flex-wrap">
+                    <div className="flex gap-2 mt-2 flex-wrap">
                       {job.suggested_trades.map((t) => (
-                        <span key={t} className="px-2 py-1 rounded-full bg-slate-100 text-xs text-slate-700 border">
+                        <span key={t} className="bg-slate-100 text-slate-700 text-xs px-2 py-1 rounded-full">
                           {t}
                         </span>
                       ))}
                     </div>
                   )}
-
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      onClick={() => acceptJob(job.id)}
-                      disabled={acceptingJobId === job.id}
-                      className="rounded-md bg-sky-600 px-3 py-2 text-white text-sm font-medium hover:bg-sky-700"
-                    >
-                      {acceptingJobId === job.id ? "Accepting…" : "Accept job"}
-                    </button>
-
-                    <button
-                      onClick={() => navigator.clipboard.writeText(window.location.href + `/jobs/${job.id}`)}
-                      className="rounded-md border px-3 py-2 text-sm"
-                    >
-                      Copy link
-                    </button>
-                  </div>
                 </div>
-              ))}
+              </div>
+
+              <div className="ml-4">
+                <button
+                  onClick={() => acceptJob(job.id)}
+                  disabled={acceptingJobId === job.id}
+                  className="px-3 py-2 border rounded bg-white hover:bg-slate-50"
+                >
+                  {acceptingJobId === job.id ? "Accepting…" : "Accept job"}
+                </button>
+              </div>
             </div>
-          )}
-        </>
-      )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 };
