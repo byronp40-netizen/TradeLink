@@ -3,6 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Home, Sparkles, MessageSquare, Shield, CheckCircle2 } from 'lucide-react';
 
+
+
+
 const Index = () => {
   return (
     <div className="min-h-screen flex flex-col">
@@ -15,6 +18,12 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-4">
             <Link to="/dashboard">
+		<Link
+  to="/contractorDashboard"
+  className="inline-block px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+>
+  Go to Contractor Dashboard
+</Link>
               <Button>Get Started</Button>
             </Link>
           </div>

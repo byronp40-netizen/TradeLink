@@ -2,16 +2,14 @@
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
-console.error("Missing Supabase server env vars: SUPABASE_URL or SUPABASE_SERVICE_ROLE");
-// If you want, throw here to fail fast on deploy:
-// throw new Error("Missing Supabase server env vars");
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error("Missing Supabase server env vars: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
-auth: { persistSession: false }
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false },
 });
 
 function normalizeStringArray(value) {
