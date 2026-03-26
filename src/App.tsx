@@ -1,3 +1,4 @@
+import CompleteContractorProfile from "@/pages/CompleteContractorProfile";
 import { useEffect, useState } from "react";
 import {
   BrowserRouter,
@@ -179,6 +180,14 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+<Route
+  path="/complete-contractor-profile"
+  element={
+    <ContractorRoute>
+      <CompleteContractorProfile />
+    </ContractorRoute>
+  }
+/>
         <Route path="/" element={<RootRedirect />} />
 
         <Route

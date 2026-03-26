@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { getJobsByCustomerId } from "@/services/jobService";
@@ -14,11 +14,15 @@ type SignedInCustomer = {
 export default function Dashboard() {
   const [customerUser, setCustomerUser] = useState<SignedInCustomer | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function loadUser() {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
 
         if (error) throw error;
 
@@ -36,7 +40,6 @@ export default function Dashboard() {
             user.email?.split("@")[0] ||
             "Customer",
         });
-
       } catch (err) {
         console.error("Failed to load customer user:", err);
         setCustomerUser(null);
@@ -47,6 +50,11 @@ export default function Dashboard() {
 
     loadUser();
   }, []);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate("/sign-in");
+  }
 
   const customerJobsQuery = useQuery<Job[]>({
     queryKey: ["customerJobs", customerUser?.id],
@@ -67,19 +75,27 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+        <div className="bg-white rounded-xl shadow-sm border p-6 flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold">Customer Dashboard</h1>
+            <p className="text-slate-600 mt-2">Welcome, {customerUser.name}</p>
 
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h1 className="text-3xl font-bold">Customer Dashboard</h1>
-          <p className="text-slate-600 mt-2">Welcome, {customerUser.name}</p>
-
-          <div className="mt-4">
-            <Link
-              to="/create-job"
-              className="inline-flex rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
-            >
-              Create New Job
-            </Link>
+            <div className="mt-4">
+              <Link
+                to="/create-job"
+                className="inline-flex rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+              >
+                Create New Job
+              </Link>
+            </div>
           </div>
+
+          <button
+            onClick={handleSignOut}
+            className="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700"
+          >
+            Sign Out
+          </button>
         </div>
 
         <section className="space-y-4">
@@ -97,9 +113,7 @@ export default function Dashboard() {
                 <div key={job.id} className="bg-white rounded-xl border p-5 shadow-sm">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-
                       <h3 className="text-lg font-semibold">{job.title}</h3>
-
                       <p className="text-slate-600 mt-1">
                         {job.description || "No description"}
                       </p>
@@ -108,25 +122,33 @@ export default function Dashboard() {
                         <div>Status: {job.status}</div>
                         <div>Primary trade: {job.primary_trade || "Not set"}</div>
                         <div>Location: {job.location || "Not set"}</div>
+                        <div>
+                          Budget:{" "}
+                          {job.budget !== null && job.budget !== undefined
+                            ? `€${job.budget}`
+                            : "Not set"}
+                        </div>
+                        <div>
+                          Created:{" "}
+                          {job.created_at
+                            ? new Date(job.created_at).toLocaleString()
+                            : "Not set"}
+                        </div>
                       </div>
-
                     </div>
 
                     <Link
                       to={`/jobs/${job.id}/quotes`}
-                      className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                      className="inline-flex justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                     >
                       View Quotes
                     </Link>
-
                   </div>
                 </div>
               ))}
             </div>
           )}
-
         </section>
-
       </div>
     </div>
   );
