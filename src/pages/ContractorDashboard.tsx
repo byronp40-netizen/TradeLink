@@ -157,6 +157,14 @@ export default function ContractorDashboard() {
 
   const quotedJobIds = new Set(myQuotes.map((quote) => quote.job_id));
 
+  console.log("Contractor user:", contractorUser);
+  console.log("Contractor profile query:", contractorProfileQuery.data);
+  console.log("Primary trade used for job filter:", contractorProfileQuery.data?.primary_trade);
+  console.log("Jobs query result:", jobsQuery.data);
+  console.log("Jobs query error:", jobsQuery.error);
+  console.log("Assigned jobs:", assignedJobsQuery.data);
+  console.log("Quotes submitted:", myQuotesQuery.data);
+
   function updateQuoteDraft(jobId: string, field: "price" | "message", value: string) {
     setQuoteDrafts((prev) => ({
       ...prev,
