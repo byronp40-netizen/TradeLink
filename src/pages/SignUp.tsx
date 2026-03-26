@@ -15,7 +15,9 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await console.log("SUPABASE URL:", import.meta.env.VITE_SUPABASE_URL);
+console.log("SUPABASE ANON KEY PRESENT:", !!import.meta.env.VITE_SUPABASE_ANON_KEY);
+supabase.auth.signUp({
         email,
         password,
       });
