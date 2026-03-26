@@ -1,22 +1,29 @@
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function getSupabase() {
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("Jobs API env check failed:", {
+      hasSupabaseUrl: Boolean(SUPABASE_URL),
+      hasServiceRoleKey: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+    });
+
+    throw new Error(
+      "Missing server environment variables: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY"
+    );
+  }
+
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false },
+  });
 }
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false },
-});
 
 function normalizeStringArray(value) {
   if (!value) return [];
   if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter(Boolean);
+    return value.map((item) => String(item).trim()).filter(Boolean);
   }
   if (typeof value === "string") {
     return value
@@ -29,6 +36,8 @@ function normalizeStringArray(value) {
 
 export default async function handler(req, res) {
   try {
+    const supabase = getSupabase();
+
     if (req.method === "GET") {
       const {
         customer_id,
@@ -43,21 +52,10 @@ export default async function handler(req, res) {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (customer_id) {
-        query = query.eq("customer_id", customer_id);
-      }
-
-      if (assigned_to) {
-        query = query.eq("assigned_to", assigned_to);
-      }
-
-      if (status) {
-        query = query.eq("status", status);
-      }
-
-      if (primary_trade) {
-        query = query.eq("primary_trade", primary_trade);
-      }
+      if (customer_id) query = query.eq("customer_id", customer_id);
+      if (assigned_to) query = query.eq("assigned_to", assigned_to);
+      if (status) query = query.eq("status", status);
+      if (primary_trade) query = query.eq("primary_trade", primary_trade);
 
       const parsedLimit = Number(limit);
       if (Number.isFinite(parsedLimit) && parsedLimit > 0) {
@@ -84,9 +82,8 @@ export default async function handler(req, res) {
           : null;
 
       const suggestedTrades = normalizeStringArray(payload.suggested_trades);
-      let primaryTrade =
-        payload.primary_trade || payload.trade_type || null;
 
+      let primaryTrade = payload.primary_trade || payload.trade_type || null;
       if (primaryTrade) {
         primaryTrade = String(primaryTrade).trim();
       }
