@@ -1,66 +1,126 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import CustomerHeader from '@/components/layout/CustomerHeader';
-import CustomerFooter from '@/components/layout/CustomerFooter';
-import AIJobCreator from '@/components/jobs/AIJobCreator';
-import { getCurrentUser } from '@/services/userService';
-import { createJob } from '@/services/jobService';
-import { getUnreadMessageCount } from '@/services/messageService';
-import { ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { useEffect, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import CustomerHeader from "@/components/layout/CustomerHeader";
+import CustomerFooter from "@/components/layout/CustomerFooter";
+import AIJobCreator from "@/components/jobs/AIJobCreator";
+import { createJob } from "@/services/jobService";
+import { supabase } from "@/lib/supabaseClient";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
+type HeaderUser = {
+  name: string;
+  email: string;
+  avatar?: string;
+};
 
 const CreateJob = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: user } = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: getCurrentUser,
-  });
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
+  const [loadingUser, setLoadingUser] = useState(true);
 
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ['unreadMessages', user?.id],
-    queryFn: () => getUnreadMessageCount(user!.id),
-    enabled: !!user,
-  });
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error) throw error;
+
+        if (!user) {
+          setAuthUserId(null);
+          setHeaderUser(null);
+          return;
+        }
+
+        setAuthUserId(user.id);
+
+        const fullName =
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          user.email?.split("@")[0] ||
+          "User";
+
+        setHeaderUser({
+          name: fullName,
+          email: user.email || "",
+          avatar: user.user_metadata?.avatar_url || undefined,
+        });
+      } catch (err) {
+        console.error("Failed to load signed-in user:", err);
+        setAuthUserId(null);
+        setHeaderUser(null);
+      } finally {
+        setLoadingUser(false);
+      }
+    }
+
+    loadUser();
+  }, []);
 
   const createJobMutation = useMutation({
     mutationFn: createJob,
     onSuccess: (newJob) => {
-      queryClient.invalidateQueries({ queryKey: ['customerJobs'] });
-      toast.success('Job created successfully!', {
-        description: 'Your job has been sent to available tradespeople in your area.',
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["customerJobs"] });
+
+      toast.success("Job created successfully", {
+        description: "Your job has been saved to the platform.",
       });
+
       navigate(`/jobs/${newJob.id}`);
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to create job", {
+        description: error.message,
+      });
     },
   });
 
-  const handleJobComplete = (jobData: any) => {
-    if (!user) return;
+  const handleJobComplete = (jobData: {
+    title: string;
+    description: string;
+    suggested_trades: string[];
+    primary_trade: string | null;
+    location: string | null;
+    budget: number | null;
+  }) => {
+    if (!authUserId) {
+      toast.error("You must be signed in to create a job.");
+      return;
+    }
 
     createJobMutation.mutate({
-      customerId: user.id,
-      title: jobData.description.slice(0, 60) + (jobData.description.length > 60 ? '...' : ''),
+      title: jobData.title,
       description: jobData.description,
-      originalDescription: jobData.originalDescription,
-      tradeCategories: jobData.tradeCategories,
-      status: 'pending_quotes',
-      urgency: jobData.urgency,
-      county: jobData.county,
-      address: jobData.address,
-      eircode: jobData.eircode,
-      preferredStartDate: jobData.preferredStartDate,
+      customer_id: authUserId,
+      trade_type: jobData.primary_trade,
+      suggested_trades: jobData.suggested_trades,
+      primary_trade: jobData.primary_trade,
+      location: jobData.location,
+      budget: jobData.budget,
+      status: "open",
     });
   };
 
-  if (!user) return null;
+  if (loadingUser) {
+    return <div className="p-6">Loading...</div>;
+  }
+
+  if (!headerUser) {
+    return <div className="p-6">You must be signed in to create a job.</div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-muted/20">
-      <CustomerHeader user={user} unreadMessages={unreadCount} />
+      <CustomerHeader user={headerUser} unreadMessages={0} />
 
       <main className="flex-1 container px-4 py-8">
         <div className="max-w-3xl mx-auto space-y-6">
@@ -71,13 +131,18 @@ const CreateJob = () => {
                 Back to Dashboard
               </Button>
             </Link>
+
             <h1 className="text-4xl font-bold tracking-tight">Create New Job</h1>
             <p className="text-lg text-muted-foreground">
-              Let our AI help you find the right tradespeople for your project
+              Describe the job and let TradeLink suggest the right trade.
             </p>
           </div>
 
           <AIJobCreator onComplete={handleJobComplete} />
+
+          {createJobMutation.isPending && (
+            <p className="text-sm text-slate-500">Creating job...</p>
+          )}
         </div>
       </main>
 

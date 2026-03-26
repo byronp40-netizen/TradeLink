@@ -1,11 +1,10 @@
-// api/jobs.js
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("Missing Supabase server env vars: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -13,118 +12,136 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 });
 
 function normalizeStringArray(value) {
-if (!value) return [];
-if (Array.isArray(value)) {
-return value
-.map((v) => (v === null || v === undefined ? "" : String(v).trim()))
-.map((v) => v.replace(/\s+/g, " ")) // collapse spaces
-.filter(Boolean);
-}
-// maybe a comma-separated string
-if (typeof value === "string") {
-return value
-.split(",")
-.map((v) => v.trim())
-.filter(Boolean);
-}
-return [];
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
 }
 
 export default async function handler(req, res) {
-try {
-// ---------------- GET ALL JOBS ----------------
-if (req.method === "GET") {
-// Optional: pagination params can be added later
-const { data, error } = await supabase
-.from("jobs")
-.select("*")
-.order("created_at", { ascending: false })
-.limit(100);
+  try {
+    if (req.method === "GET") {
+      const {
+        customer_id,
+        assigned_to,
+        status,
+        primary_trade,
+        limit,
+      } = req.query;
 
-if (error) throw error;
-return res.status(200).json(data);
-}
+      let query = supabase
+        .from("jobs")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-// ---------------- CREATE JOB ----------------
-if (req.method === "POST") {
-const payload = req.body ?? {};
+      if (customer_id) {
+        query = query.eq("customer_id", customer_id);
+      }
 
-// Basic server-side validation
-const title = payload.title ? String(payload.title).trim() : "";
-const description = payload.description ? String(payload.description).trim() : "";
+      if (assigned_to) {
+        query = query.eq("assigned_to", assigned_to);
+      }
 
-if (!title || !description) {
-return res.status(400).json({ error: "Missing title or description" });
-}
+      if (status) {
+        query = query.eq("status", status);
+      }
 
-// Normalize suggested_trades (allow array or comma-separated string)
-const suggestedTrades = normalizeStringArray(payload.suggested_trades || payload.suggestedTrades || payload.suggested_trades);
-// Also accept trade_type or primary_trade provided directly
-let primaryTrade = payload.primary_trade || payload.primaryTrade || payload.trade_type || null;
-if (primaryTrade) primaryTrade = String(primaryTrade).trim();
+      if (primary_trade) {
+        query = query.eq("primary_trade", primary_trade);
+      }
 
-// If primary_trade provided but not in suggestedTrades, add it to suggestedTrades
-if (primaryTrade) {
-const exists = suggestedTrades.some((t) => t.toLowerCase() === primaryTrade.toLowerCase());
-if (!exists) suggestedTrades.unshift(primaryTrade);
-}
+      const parsedLimit = Number(limit);
+      if (Number.isFinite(parsedLimit) && parsedLimit > 0) {
+        query = query.limit(parsedLimit);
+      }
 
-// If no primaryTrade but there is a single suggested trade, set it
-if (!primaryTrade && suggestedTrades.length === 1) {
-primaryTrade = suggestedTrades[0];
-}
+      const { data, error } = await query;
 
-// Budget handling: allow numeric or string ranges — coerce numeric when possible
-let budget = null;
-if (payload.budget !== undefined && payload.budget !== null && payload.budget !== "") {
-const b = payload.budget;
-if (typeof b === "number") {
-budget = b;
-} else {
-// attempt to extract first numeric token
-const cleaned = String(b).replace(/[^\d.,-]/g, "").replace(",", ".");
-const n = Number(cleaned);
-budget = Number.isFinite(n) ? n : null;
-}
-}
+      if (error) throw error;
+      return res.status(200).json(data ?? []);
+    }
 
-const toInsert = {
-title,
-description,
-customer_id: payload.customer_id || null,
-trade_type: primaryTrade || null, // legacy single-field
-suggested_trades: suggestedTrades.length > 0 ? suggestedTrades : null, // text[] or jsonb
-primary_trade: primaryTrade || null,
-location: payload.location || null,
-budget: budget,
-status: payload.status || "open"
-};
+    if (req.method === "POST") {
+      const payload = req.body || {};
 
-// Insert into Supabase
-const { data, error } = await supabase
-.from("jobs")
-.insert([toInsert])
-.select()
-.single();
+      const title = payload.title ? String(payload.title).trim() : "";
+      if (!title) {
+        return res.status(400).json({ error: "title is required" });
+      }
 
-if (error) throw error;
-return res.status(201).json(data);
-}
+      const description =
+        payload.description !== undefined && payload.description !== null
+          ? String(payload.description).trim()
+          : null;
 
-// ---------------- DELETE JOB ----------------
-if (req.method === "DELETE") {
-const { id } = req.query;
-if (!id) return res.status(400).json({ error: "Missing id" });
-const { error } = await supabase.from("jobs").delete().eq("id", id);
-if (error) throw error;
-return res.status(204).end();
-}
+      const suggestedTrades = normalizeStringArray(payload.suggested_trades);
+      let primaryTrade =
+        payload.primary_trade || payload.trade_type || null;
 
-res.setHeader("Allow", ["GET", "POST", "DELETE"]);
-return res.status(405).end(`Method ${req.method} Not Allowed`);
-} catch (err) {
-console.error("Jobs API error:", err);
-// hide internal stack in production, but return message for debugging
-return res.status(500).json({ error: err.message || "Server error" });
-}
+      if (primaryTrade) {
+        primaryTrade = String(primaryTrade).trim();
+      }
+
+      if (!primaryTrade && suggestedTrades.length === 1) {
+        primaryTrade = suggestedTrades[0];
+      }
+
+      if (primaryTrade) {
+        const exists = suggestedTrades.some(
+          (trade) => trade.toLowerCase() === primaryTrade.toLowerCase()
+        );
+        if (!exists) {
+          suggestedTrades.unshift(primaryTrade);
+        }
+      }
+
+      let budget = null;
+      if (
+        payload.budget !== undefined &&
+        payload.budget !== null &&
+        payload.budget !== ""
+      ) {
+        const numericBudget = Number(payload.budget);
+        budget = Number.isFinite(numericBudget) ? numericBudget : null;
+      }
+
+      const toInsert = {
+        title,
+        description,
+        customer_id: payload.customer_id || null,
+        trade_type: primaryTrade || null,
+        suggested_trades: suggestedTrades.length > 0 ? suggestedTrades : null,
+        primary_trade: primaryTrade || null,
+        location: payload.location || null,
+        budget,
+        status: payload.status || "open",
+      };
+
+      const { data, error } = await supabase
+        .from("jobs")
+        .insert([toInsert])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return res.status(201).json(data);
+    }
+
+    res.setHeader("Allow", ["GET", "POST"]);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
+  } catch (err) {
+    console.error("Jobs API error:", err);
+    return res.status(500).json({
+      error: err.message || "Server error",
+    });
+  }
 }
