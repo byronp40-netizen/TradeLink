@@ -49,13 +49,34 @@ export async function createQuote(input: CreateQuoteInput): Promise<Quote> {
 }
 
 export async function acceptQuote(quoteId: string): Promise<Quote> {
-  return apiRequest<Quote>(`/api/quotes/${quoteId}/accept`, {
-    method: "POST",
-  });
+  return apiRequest<Quote>(
+    `/api/quote-actions?id=${encodeURIComponent(quoteId)}&action=accept`,
+    {
+      method: "POST",
+    }
+  );
 }
 
 export async function rejectQuote(quoteId: string): Promise<Quote> {
-  return apiRequest<Quote>(`/api/quotes/${quoteId}/reject`, {
-    method: "POST",
-  });
+  return apiRequest<Quote>(
+    `/api/quote-actions?id=${encodeURIComponent(quoteId)}&action=reject`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+export async function updateQuoteStatus(
+  quoteId: string,
+  status: "accepted" | "rejected"
+): Promise<Quote> {
+  if (status === "accepted") {
+    return acceptQuote(quoteId);
+  }
+
+  if (status === "rejected") {
+    return rejectQuote(quoteId);
+  }
+
+  throw new Error(`Unsupported quote status update: ${status}`);
 }
