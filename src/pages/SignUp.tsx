@@ -15,41 +15,50 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      const { data, error } = await console.log("SUPABASE URL:", import.meta.env.VITE_SUPABASE_URL);
-console.log("SUPABASE ANON KEY PRESENT:", !!import.meta.env.VITE_SUPABASE_ANON_KEY);
-supabase.auth.signUp({
+      const signupResponse = await supabase.auth.signUp({
         email,
         password,
       });
 
+      console.log("signUp response:", signupResponse);
+
+      if (!signupResponse) {
+        alert("Signup failed: no response returned from Supabase.");
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = signupResponse;
+
       if (error) {
-        alert(error.message);
+        alert(`Signup failed: ${error.message}`);
         setLoading(false);
         return;
       }
 
-      const user = data.user;
+      const user = data?.user;
 
-      if (!user) {
-        alert("User creation failed.");
+      if (!user?.id) {
+        alert("Signup succeeded but no user was returned. Check email confirmation settings in Supabase Auth.");
         setLoading(false);
         return;
       }
 
-      const { error: profileError } = await supabase
+      const profileUpdateResponse = await supabase
         .from("profiles")
         .update({ role })
         .eq("id", user.id);
 
-      if (profileError) {
-        console.error("profiles update error:", profileError);
-        alert(`Profile setup failed: ${profileError.message}`);
+      console.log("profile update response:", profileUpdateResponse);
+
+      if (profileUpdateResponse?.error) {
+        alert(`Profile setup failed: ${profileUpdateResponse.error.message}`);
         setLoading(false);
         return;
       }
 
       if (role === "contractor") {
-        const { error: contractorProfileError } = await supabase
+        const contractorInsertResponse = await supabase
           .from("contractor_profiles")
           .upsert({
             id: user.id,
@@ -59,15 +68,14 @@ supabase.auth.signUp({
             bio: null,
           });
 
-        if (contractorProfileError) {
-          console.error("contractor_profiles upsert error:", contractorProfileError);
-          alert(`Contractor profile setup failed: ${contractorProfileError.message}`);
+        console.log("contractor profile response:", contractorInsertResponse);
+
+        if (contractorInsertResponse?.error) {
+          alert(`Contractor profile setup failed: ${contractorInsertResponse.error.message}`);
           setLoading(false);
           return;
         }
-      }
 
-      if (role === "contractor") {
         navigate("/complete-contractor-profile");
       } else {
         navigate("/");
