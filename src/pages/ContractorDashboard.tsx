@@ -43,10 +43,7 @@ export default function ContractorDashboard() {
           return;
         }
 
-        if (
-          TEMP_TEST_CONTRACTOR_ID &&
-          TEMP_TEST_CONTRACTOR_ID !== "ef0aeb9a-0ab6-4552-abee-40b9c09d3a41"
-        ) {
+        if (TEMP_TEST_CONTRACTOR_ID) {
           setContractorUser({
             id: TEMP_TEST_CONTRACTOR_ID,
             email: "contractor@test.local",
@@ -59,10 +56,7 @@ export default function ContractorDashboard() {
       } catch (err) {
         console.error("Failed to load contractor user:", err);
 
-        if (
-          TEMP_TEST_CONTRACTOR_ID &&
-          TEMP_TEST_CONTRACTOR_ID !== "ef0aeb9a-0ab6-4552-abee-40b9c09d3a41"
-        ) {
+        if (TEMP_TEST_CONTRACTOR_ID) {
           setContractorUser({
             id: TEMP_TEST_CONTRACTOR_ID,
             email: "contractor@test.local",
@@ -124,23 +118,14 @@ export default function ContractorDashboard() {
   });
 
   const availableJobs = useMemo(() => jobsQuery.data ?? [], [jobsQuery.data]);
-  const assignedJobs = useMemo(
-    () => assignedJobsQuery.data ?? [],
-    [assignedJobsQuery.data]
-  );
+  const assignedJobs = useMemo(() => assignedJobsQuery.data ?? [], [assignedJobsQuery.data]);
 
   if (loadingAuth) {
     return <div className="p-6">Loading contractor dashboard...</div>;
   }
 
   if (!contractorUser) {
-    return (
-      <div className="p-6">
-        No contractor user found. Add a temporary contractor ID in
-        <code className="mx-1">ContractorDashboard.tsx</code>
-        or build contractor sign-in first.
-      </div>
-    );
+    return <div className="p-6">No contractor user found.</div>;
   }
 
   if (contractorProfileQuery.isLoading) {
@@ -148,11 +133,7 @@ export default function ContractorDashboard() {
   }
 
   if (contractorProfileQuery.isError || !contractorProfileQuery.data) {
-    return (
-      <div className="p-6">
-        Could not load contractor profile for this user ID.
-      </div>
-    );
+    return <div className="p-6">Could not load contractor profile for this user ID.</div>;
   }
 
   const contractorProfile = contractorProfileQuery.data;
@@ -162,16 +143,12 @@ export default function ContractorDashboard() {
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <h1 className="text-3xl font-bold">Contractor Dashboard</h1>
-          <p className="text-slate-600 mt-2">
-            Welcome, {contractorUser.name}
-          </p>
+          <p className="text-slate-600 mt-2">Welcome, {contractorUser.name}</p>
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div className="rounded-lg border bg-slate-50 p-4">
               <div className="text-slate-500">Business</div>
-              <div className="font-medium">
-                {contractorProfile.business_name || "Not set"}
-              </div>
+              <div className="font-medium">{contractorProfile.business_name || "Not set"}</div>
             </div>
 
             <div className="rounded-lg border bg-slate-50 p-4">
@@ -198,9 +175,7 @@ export default function ContractorDashboard() {
           {jobsQuery.isLoading ? (
             <div className="bg-white rounded-xl border p-6">Loading jobs...</div>
           ) : availableJobs.length === 0 ? (
-            <div className="bg-white rounded-xl border p-6">
-              No open jobs found for your primary trade.
-            </div>
+            <div className="bg-white rounded-xl border p-6">No open jobs found for your primary trade.</div>
           ) : (
             <div className="grid gap-4">
               {availableJobs.map((job) => (
@@ -215,10 +190,7 @@ export default function ContractorDashboard() {
                         <div>Primary trade: {job.primary_trade || "Not set"}</div>
                         <div>Location: {job.location || "Not set"}</div>
                         <div>
-                          Budget:{" "}
-                          {job.budget !== null && job.budget !== undefined
-                            ? `€${job.budget}`
-                            : "Not set"}
+                          Budget: {job.budget !== null && job.budget !== undefined ? `€${job.budget}` : "Not set"}
                         </div>
                       </div>
                     </div>
@@ -244,9 +216,7 @@ export default function ContractorDashboard() {
           {assignedJobsQuery.isLoading ? (
             <div className="bg-white rounded-xl border p-6">Loading assigned jobs...</div>
           ) : assignedJobs.length === 0 ? (
-            <div className="bg-white rounded-xl border p-6">
-              You have no assigned jobs yet.
-            </div>
+            <div className="bg-white rounded-xl border p-6">You have no assigned jobs yet.</div>
           ) : (
             <div className="grid gap-4">
               {assignedJobs.map((job) => (
@@ -258,10 +228,7 @@ export default function ContractorDashboard() {
                     <div>Status: {job.status}</div>
                     <div>Location: {job.location || "Not set"}</div>
                     <div>
-                      Accepted at:{" "}
-                      {job.accepted_at
-                        ? new Date(job.accepted_at).toLocaleString()
-                        : "Not set"}
+                      Accepted at: {job.accepted_at ? new Date(job.accepted_at).toLocaleString() : "Not set"}
                     </div>
                   </div>
                 </div>

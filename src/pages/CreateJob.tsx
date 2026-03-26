@@ -16,8 +16,7 @@ type HeaderUser = {
   avatar?: string;
 };
 
-const TEMP_TEST_CUSTOMER_ID =
-  "832efb7e-5cf5-4ad4-a39b-bde7d53b42e4";
+const TEMP_TEST_CUSTOMER_ID = "832efb7e-5cf5-4ad4-a39b-bde7d53b42e4";
 
 const CreateJob = () => {
   const navigate = useNavigate();
@@ -55,8 +54,7 @@ const CreateJob = () => {
           return;
         }
 
-        // Temporary fallback until proper sign-in is built
-        if (TEMP_TEST_CUSTOMER_ID && TEMP_TEST_CUSTOMER_ID !== "832efb7e-5cf5-4ad4-a39b-bde7d53b42e4") {
+        if (TEMP_TEST_CUSTOMER_ID) {
           setAuthUserId(TEMP_TEST_CUSTOMER_ID);
           setHeaderUser({
             name: "Test Customer",
@@ -70,7 +68,7 @@ const CreateJob = () => {
       } catch (err) {
         console.error("Failed to load signed-in user:", err);
 
-        if (TEMP_TEST_CUSTOMER_ID && TEMP_TEST_CUSTOMER_ID !== "832efb7e-5cf5-4ad4-a39b-bde7d53b42e4") {
+        if (TEMP_TEST_CUSTOMER_ID) {
           setAuthUserId(TEMP_TEST_CUSTOMER_ID);
           setHeaderUser({
             name: "Test Customer",
