@@ -4,15 +4,20 @@ import type { ContractorProfile } from "../types";
 export async function getContractorProfileById(
   id: string
 ): Promise<ContractorProfile> {
-  return apiRequest<ContractorProfile>(`/api/contractor-profiles/${id}`);
+  return apiRequest<ContractorProfile>(
+    `/api/contractor-profiles?id=${encodeURIComponent(id)}`
+  );
 }
 
 export async function updateContractorProfile(
   id: string,
   updates: Partial<ContractorProfile>
 ): Promise<ContractorProfile> {
-  return apiRequest<ContractorProfile>(`/api/contractor-profiles/${id}`, {
-    method: "PATCH",
-    body: updates,
-  });
+  return apiRequest<ContractorProfile>(
+    `/api/contractor-profiles?id=${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: updates,
+    }
+  );
 }
