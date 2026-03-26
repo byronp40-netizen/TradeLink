@@ -1,179 +1,275 @@
-// src/pages/ContractorDashboard.tsx
-import React, { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
+import { getAllJobs, updateJob } from "@/services/jobService";
+import { getContractorProfileById } from "@/services/contractorProfileService";
+import type { ContractorProfile, Job } from "@/types";
 
-type Job = {
+const TEMP_TEST_CONTRACTOR_ID = "ef0aeb9a-0ab6-4552-abee-40b9c09d3a41";
+
+type SignedInContractor = {
   id: string;
-  title: string;
-  description?: string;
-  suggested_trades?: string[];
-  primary_trade?: string;
-  location?: string;
-  budget?: number;
-  status?: string;
-  created_at?: string;
+  email: string;
+  name: string;
 };
 
-const ContractorDashboard: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [profile, setProfile] = useState<any | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [acceptingJobId, setAcceptingJobId] = useState<string | null>(null);
+export default function ContractorDashboard() {
+  const queryClient = useQueryClient();
+
+  const [contractorUser, setContractorUser] = useState<SignedInContractor | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    loadProfileAndJobs();
-    // Optionally subscribe to real-time changes:
-    // const subscription = supabase
-    //   .channel('public:jobs')
-    //   .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, payload => {
-    //     loadJobs(); // re-load or patch state
-    //   })
-    //   .subscribe();
-    //
-    // return () => { supabase.removeChannel(subscription); };
+    async function loadUser() {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error) throw error;
+
+        if (user) {
+          setContractorUser({
+            id: user.id,
+            email: user.email || "",
+            name:
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.email?.split("@")[0] ||
+              "Contractor",
+          });
+          return;
+        }
+
+        if (
+          TEMP_TEST_CONTRACTOR_ID &&
+          TEMP_TEST_CONTRACTOR_ID !== "ef0aeb9a-0ab6-4552-abee-40b9c09d3a41"
+        ) {
+          setContractorUser({
+            id: TEMP_TEST_CONTRACTOR_ID,
+            email: "contractor@test.local",
+            name: "Test Contractor",
+          });
+          return;
+        }
+
+        setContractorUser(null);
+      } catch (err) {
+        console.error("Failed to load contractor user:", err);
+
+        if (
+          TEMP_TEST_CONTRACTOR_ID &&
+          TEMP_TEST_CONTRACTOR_ID !== "ef0aeb9a-0ab6-4552-abee-40b9c09d3a41"
+        ) {
+          setContractorUser({
+            id: TEMP_TEST_CONTRACTOR_ID,
+            email: "contractor@test.local",
+            name: "Test Contractor",
+          });
+        } else {
+          setContractorUser(null);
+        }
+      } finally {
+        setLoadingAuth(false);
+      }
+    }
+
+    loadUser();
   }, []);
 
-  async function loadProfileAndJobs() {
-    setLoading(true);
-    try {
-      // Get current user profile
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  const contractorProfileQuery = useQuery<ContractorProfile>({
+    queryKey: ["contractorProfile", contractorUser?.id],
+    queryFn: () => getContractorProfileById(contractorUser!.id),
+    enabled: !!contractorUser?.id,
+  });
 
-      if (!user) {
-        setProfile(null);
-        await loadJobs(null);
-        setLoading(false);
-        return;
+  const jobsQuery = useQuery<Job[]>({
+    queryKey: ["openJobsForTrade", contractorProfileQuery.data?.primary_trade],
+    queryFn: () =>
+      getAllJobs({
+        status: "open",
+        primary_trade: contractorProfileQuery.data?.primary_trade || undefined,
+      }),
+    enabled: !!contractorProfileQuery.data?.primary_trade,
+  });
+
+  const assignedJobsQuery = useQuery<Job[]>({
+    queryKey: ["assignedJobs", contractorUser?.id],
+    queryFn: () => getAllJobs({ assigned_to: contractorUser!.id }),
+    enabled: !!contractorUser?.id,
+  });
+
+  const acceptJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      if (!contractorUser?.id) {
+        throw new Error("No contractor ID available");
       }
 
-      // If you store profiles in the profiles table:
-      const { data: profileData, error: profileErr } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (profileErr) {
-        console.warn("Profile fetch error", profileErr);
-      } else {
-        setProfile(profileData);
-      }
-
-      await loadJobs(profileData?.primary_trade ?? null);
-    } catch (err: any) {
-      console.error(err);
-      setError(String(err.message ?? err));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadJobs(tradeFilter: string | null) {
-    try {
-      let q = supabase.from("jobs").select("*").order("created_at", { ascending: false }).limit(200);
-      if (tradeFilter) {
-        q = q.eq("primary_trade", tradeFilter);
-      } else {
-        // Optionally: filter to open jobs only
-        q = q.eq("status", "open");
-      }
-
-      const { data, error } = await q;
-      if (error) throw error;
-      setJobs(data ?? []);
-    } catch (err: any) {
-      console.error("loadJobs error", err);
-      setError(String(err.message ?? err));
-    }
-  }
-
-  async function acceptJob(jobId: string) {
-    setAcceptingJobId(jobId);
-    setError(null);
-    try {
-      // Get current user id from client auth
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) throw new Error("Not signed in");
-
-      const res = await fetch("/api/jobs/accept", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId,
-          contractorId: user.id,
-        }),
+      return updateJob(jobId, {
+        status: "assigned",
+        assigned_to: contractorUser.id,
+        accepted_at: new Date().toISOString(),
       });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["openJobsForTrade"] });
+      queryClient.invalidateQueries({ queryKey: ["assignedJobs"] });
+      setErrorMessage("");
+    },
+    onError: (error: Error) => {
+      setErrorMessage(error.message);
+    },
+  });
 
-      const payload = await res.json();
-      if (!res.ok || payload?.error) {
-        throw new Error(payload?.error ?? "Failed to accept job");
-      }
+  const availableJobs = useMemo(() => jobsQuery.data ?? [], [jobsQuery.data]);
+  const assignedJobs = useMemo(
+    () => assignedJobsQuery.data ?? [],
+    [assignedJobsQuery.data]
+  );
 
-      // Refresh jobs after accept
-      await loadJobs(profile?.primary_trade ?? null);
-    } catch (err: any) {
-      console.error(err);
-      setError(String(err.message ?? err));
-    } finally {
-      setAcceptingJobId(null);
-    }
+  if (loadingAuth) {
+    return <div className="p-6">Loading contractor dashboard...</div>;
   }
 
-  if (loading) return <div className="p-6">Loading contractor dashboard…</div>;
-  if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (!contractorUser) {
+    return (
+      <div className="p-6">
+        No contractor user found. Add a temporary contractor ID in
+        <code className="mx-1">ContractorDashboard.tsx</code>
+        or build contractor sign-in first.
+      </div>
+    );
+  }
+
+  if (contractorProfileQuery.isLoading) {
+    return <div className="p-6">Loading contractor profile...</div>;
+  }
+
+  if (contractorProfileQuery.isError || !contractorProfileQuery.data) {
+    return (
+      <div className="p-6">
+        Could not load contractor profile for this user ID.
+      </div>
+    );
+  }
+
+  const contractorProfile = contractorProfileQuery.data;
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h2 className="text-2xl font-semibold mb-4">Contractor Dashboard</h2>
-      <p className="text-sm text-slate-600 mb-4">Jobs available{profile?.primary_trade ? ` for ${profile.primary_trade}` : ""}</p>
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <h1 className="text-3xl font-bold">Contractor Dashboard</h1>
+          <p className="text-slate-600 mt-2">
+            Welcome, {contractorUser.name}
+          </p>
 
-      {jobs.length === 0 && <div className="text-sm text-slate-500">No jobs currently available.</div>}
-
-      <ul className="space-y-4">
-        {jobs.map((job) => (
-          <li key={job.id} className="p-4 border rounded">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-medium">{job.title}</h3>
-                <div className="text-sm text-slate-600">{job.description}</div>
-                <div className="mt-2 text-xs text-slate-500">
-                  {job.location ? `${job.location} • ` : ""}
-                  {job.budget ? `€${job.budget}` : "No budget provided"}
-                </div>
-                <div className="mt-2">
-                  {Array.isArray(job.suggested_trades) && job.suggested_trades.length > 0 && (
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {job.suggested_trades.map((t) => (
-                        <span key={t} className="bg-slate-100 text-slate-700 text-xs px-2 py-1 rounded-full">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="ml-4">
-                <button
-                  onClick={() => acceptJob(job.id)}
-                  disabled={acceptingJobId === job.id}
-                  className="px-3 py-2 border rounded bg-white hover:bg-slate-50"
-                >
-                  {acceptingJobId === job.id ? "Accepting…" : "Accept job"}
-                </button>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="rounded-lg border bg-slate-50 p-4">
+              <div className="text-slate-500">Business</div>
+              <div className="font-medium">
+                {contractorProfile.business_name || "Not set"}
               </div>
             </div>
-          </li>
-        ))}
-      </ul>
+
+            <div className="rounded-lg border bg-slate-50 p-4">
+              <div className="text-slate-500">Primary Trade</div>
+              <div className="font-medium">{contractorProfile.primary_trade}</div>
+            </div>
+
+            <div className="rounded-lg border bg-slate-50 p-4">
+              <div className="text-slate-500">County</div>
+              <div className="font-medium">{contractorProfile.county || "Not set"}</div>
+            </div>
+          </div>
+        </div>
+
+        {errorMessage && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+            {errorMessage}
+          </div>
+        )}
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">Available Jobs</h2>
+
+          {jobsQuery.isLoading ? (
+            <div className="bg-white rounded-xl border p-6">Loading jobs...</div>
+          ) : availableJobs.length === 0 ? (
+            <div className="bg-white rounded-xl border p-6">
+              No open jobs found for your primary trade.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {availableJobs.map((job) => (
+                <div key={job.id} className="bg-white rounded-xl border p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">{job.title}</h3>
+                      <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
+
+                      <div className="mt-3 text-sm text-slate-500 space-y-1">
+                        <div>Status: {job.status}</div>
+                        <div>Primary trade: {job.primary_trade || "Not set"}</div>
+                        <div>Location: {job.location || "Not set"}</div>
+                        <div>
+                          Budget:{" "}
+                          {job.budget !== null && job.budget !== undefined
+                            ? `€${job.budget}`
+                            : "Not set"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => acceptJobMutation.mutate(job.id)}
+                      disabled={acceptJobMutation.isPending}
+                      className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                    >
+                      Accept Job
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">My Assigned Jobs</h2>
+
+          {assignedJobsQuery.isLoading ? (
+            <div className="bg-white rounded-xl border p-6">Loading assigned jobs...</div>
+          ) : assignedJobs.length === 0 ? (
+            <div className="bg-white rounded-xl border p-6">
+              You have no assigned jobs yet.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {assignedJobs.map((job) => (
+                <div key={job.id} className="bg-white rounded-xl border p-5 shadow-sm">
+                  <h3 className="text-lg font-semibold">{job.title}</h3>
+                  <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
+
+                  <div className="mt-3 text-sm text-slate-500 space-y-1">
+                    <div>Status: {job.status}</div>
+                    <div>Location: {job.location || "Not set"}</div>
+                    <div>
+                      Accepted at:{" "}
+                      {job.accepted_at
+                        ? new Date(job.accepted_at).toLocaleString()
+                        : "Not set"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
-};
-
-export default ContractorDashboard;
+}

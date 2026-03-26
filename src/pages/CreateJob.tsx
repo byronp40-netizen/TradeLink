@@ -56,7 +56,7 @@ const CreateJob = () => {
         }
 
         // Temporary fallback until proper sign-in is built
-        if (TEMP_TEST_CUSTOMER_ID && TEMP_TEST_CUSTOMER_ID !== "PASTE_AN_EXISTING_PROFILE_ID_HERE") {
+        if (TEMP_TEST_CUSTOMER_ID && TEMP_TEST_CUSTOMER_ID !== "832efb7e-5cf5-4ad4-a39b-bde7d53b42e4") {
           setAuthUserId(TEMP_TEST_CUSTOMER_ID);
           setHeaderUser({
             name: "Test Customer",
@@ -70,7 +70,7 @@ const CreateJob = () => {
       } catch (err) {
         console.error("Failed to load signed-in user:", err);
 
-        if (TEMP_TEST_CUSTOMER_ID && TEMP_TEST_CUSTOMER_ID !== "PASTE_AN_EXISTING_PROFILE_ID_HERE") {
+        if (TEMP_TEST_CUSTOMER_ID && TEMP_TEST_CUSTOMER_ID !== "832efb7e-5cf5-4ad4-a39b-bde7d53b42e4") {
           setAuthUserId(TEMP_TEST_CUSTOMER_ID);
           setHeaderUser({
             name: "Test Customer",
