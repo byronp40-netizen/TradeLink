@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { getAllJobs, updateJob } from "@/services/jobService";
 import { getContractorProfileById } from "@/services/contractorProfileService";
-import type { ContractorProfile, Job } from "@/types";
+import { createQuote, getQuotesByTradespersonId } from "@/services/quoteService";
+import type { ContractorProfile, Job, Quote } from "@/types";
 
 const TEMP_TEST_CONTRACTOR_ID = "ef0aeb9a-0ab6-4552-abee-40b9c09d3a41";
 
@@ -19,6 +20,7 @@ export default function ContractorDashboard() {
   const [contractorUser, setContractorUser] = useState<SignedInContractor | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [quoteDrafts, setQuoteDrafts] = useState<Record<string, { price: string; message: string }>>({});
 
   useEffect(() => {
     async function loadUser() {
@@ -95,6 +97,12 @@ export default function ContractorDashboard() {
     enabled: !!contractorUser?.id,
   });
 
+  const myQuotesQuery = useQuery<Quote[]>({
+    queryKey: ["myQuotes", contractorUser?.id],
+    queryFn: () => getQuotesByTradespersonId(contractorUser!.id),
+    enabled: !!contractorUser?.id,
+  });
+
   const acceptJobMutation = useMutation({
     mutationFn: async (jobId: string) => {
       if (!contractorUser?.id) {
@@ -117,8 +125,64 @@ export default function ContractorDashboard() {
     },
   });
 
+  const createQuoteMutation = useMutation({
+    mutationFn: async (input: {
+      job_id: string;
+      price: number;
+      message: string;
+    }) => {
+      if (!contractorUser?.id) {
+        throw new Error("No contractor ID available");
+      }
+
+      return createQuote({
+        job_id: input.job_id,
+        tradesperson_id: contractorUser.id,
+        price: input.price,
+        message: input.message,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["myQuotes"] });
+      setErrorMessage("");
+    },
+    onError: (error: Error) => {
+      setErrorMessage(error.message);
+    },
+  });
+
   const availableJobs = useMemo(() => jobsQuery.data ?? [], [jobsQuery.data]);
   const assignedJobs = useMemo(() => assignedJobsQuery.data ?? [], [assignedJobsQuery.data]);
+  const myQuotes = useMemo(() => myQuotesQuery.data ?? [], [myQuotesQuery.data]);
+
+  const quotedJobIds = new Set(myQuotes.map((quote) => quote.job_id));
+
+  function updateQuoteDraft(jobId: string, field: "price" | "message", value: string) {
+    setQuoteDrafts((prev) => ({
+      ...prev,
+      [jobId]: {
+        price: prev[jobId]?.price ?? "",
+        message: prev[jobId]?.message ?? "",
+        [field]: value,
+      },
+    }));
+  }
+
+  function submitQuote(jobId: string) {
+    const draft = quoteDrafts[jobId];
+    const price = Number(draft?.price);
+
+    if (!Number.isFinite(price)) {
+      setErrorMessage("Enter a valid numeric price before submitting a quote.");
+      return;
+    }
+
+    createQuoteMutation.mutate({
+      job_id: jobId,
+      price,
+      message: draft?.message || "",
+    });
+  }
 
   if (loadingAuth) {
     return <div className="p-6">Loading contractor dashboard...</div>;
@@ -178,34 +242,82 @@ export default function ContractorDashboard() {
             <div className="bg-white rounded-xl border p-6">No open jobs found for your primary trade.</div>
           ) : (
             <div className="grid gap-4">
-              {availableJobs.map((job) => (
-                <div key={job.id} className="bg-white rounded-xl border p-5 shadow-sm">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">{job.title}</h3>
-                      <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
+              {availableJobs.map((job) => {
+                const alreadyQuoted = quotedJobIds.has(job.id);
+                const draft = quoteDrafts[job.id] || { price: "", message: "" };
 
-                      <div className="mt-3 text-sm text-slate-500 space-y-1">
-                        <div>Status: {job.status}</div>
-                        <div>Primary trade: {job.primary_trade || "Not set"}</div>
-                        <div>Location: {job.location || "Not set"}</div>
-                        <div>
-                          Budget: {job.budget !== null && job.budget !== undefined ? `€${job.budget}` : "Not set"}
+                return (
+                  <div key={job.id} className="bg-white rounded-xl border p-5 shadow-sm space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-semibold">{job.title}</h3>
+                        <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
+
+                        <div className="mt-3 text-sm text-slate-500 space-y-1">
+                          <div>Status: {job.status}</div>
+                          <div>Primary trade: {job.primary_trade || "Not set"}</div>
+                          <div>Location: {job.location || "Not set"}</div>
+                          <div>
+                            Budget: {job.budget !== null && job.budget !== undefined ? `€${job.budget}` : "Not set"}
+                          </div>
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => acceptJobMutation.mutate(job.id)}
+                        disabled={acceptJobMutation.isPending}
+                        className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                      >
+                        Accept Job
+                      </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => acceptJobMutation.mutate(job.id)}
-                      disabled={acceptJobMutation.isPending}
-                      className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
-                    >
-                      Accept Job
-                    </button>
+                    <div className="border-t pt-4 space-y-3">
+                      <h4 className="font-medium">Submit Quote</h4>
+
+                      {alreadyQuoted ? (
+                        <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-3">
+                          You have already submitted a quote for this job.
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="block text-sm text-slate-600 mb-1">Price (€)</label>
+                            <input
+                              type="number"
+                              value={draft.price}
+                              onChange={(e) => updateQuoteDraft(job.id, "price", e.target.value)}
+                              className="w-full rounded-md border px-3 py-2 text-sm"
+                              placeholder="Enter quote amount"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm text-slate-600 mb-1">Message</label>
+                            <textarea
+                              value={draft.message}
+                              onChange={(e) => updateQuoteDraft(job.id, "message", e.target.value)}
+                              className="w-full rounded-md border px-3 py-2 text-sm"
+                              rows={3}
+                              placeholder="Add a short note for the customer"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => submitQuote(job.id)}
+                            disabled={createQuoteMutation.isPending}
+                            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            Submit Quote
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
