@@ -40,8 +40,8 @@ export default function SignUp() {
         .eq("id", user.id);
 
       if (profileError) {
-        console.error(profileError);
-        alert("Profile setup failed.");
+        console.error("profiles update error:", profileError);
+        alert(`Profile setup failed: ${profileError.message}`);
         setLoading(false);
         return;
       }
@@ -49,7 +49,7 @@ export default function SignUp() {
       if (role === "contractor") {
         const { error: contractorProfileError } = await supabase
           .from("contractor_profiles")
-          .insert({
+          .upsert({
             id: user.id,
             business_name: null,
             primary_trade: null,
@@ -58,8 +58,8 @@ export default function SignUp() {
           });
 
         if (contractorProfileError) {
-          console.error(contractorProfileError);
-          alert("Contractor profile setup failed.");
+          console.error("contractor_profiles upsert error:", contractorProfileError);
+          alert(`Contractor profile setup failed: ${contractorProfileError.message}`);
           setLoading(false);
           return;
         }
@@ -70,9 +70,9 @@ export default function SignUp() {
       } else {
         navigate("/");
       }
-    } catch (err) {
-      console.error(err);
-      alert("Signup failed.");
+    } catch (err: any) {
+      console.error("signup error:", err);
+      alert(`Signup failed: ${err?.message || "Unknown error"}`);
     }
 
     setLoading(false);
