@@ -16,8 +16,6 @@ type HeaderUser = {
   avatar?: string;
 };
 
-const TEMP_TEST_CUSTOMER_ID = "832efb7e-5cf5-4ad4-a39b-bde7d53b42e4";
-
 const CreateJob = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -36,48 +34,29 @@ const CreateJob = () => {
 
         if (error) throw error;
 
-        if (user) {
-          setAuthUserId(user.id);
-
-          const fullName =
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            user.email?.split("@")[0] ||
-            "User";
-
-          setHeaderUser({
-            name: fullName,
-            email: user.email || "",
-            avatar: user.user_metadata?.avatar_url || undefined,
-          });
-
-          return;
-        }
-
-        if (TEMP_TEST_CUSTOMER_ID) {
-          setAuthUserId(TEMP_TEST_CUSTOMER_ID);
-          setHeaderUser({
-            name: "Test Customer",
-            email: "test@local.dev",
-          });
-          return;
-        }
-
-        setAuthUserId(null);
-        setHeaderUser(null);
-      } catch (err) {
-        console.error("Failed to load signed-in user:", err);
-
-        if (TEMP_TEST_CUSTOMER_ID) {
-          setAuthUserId(TEMP_TEST_CUSTOMER_ID);
-          setHeaderUser({
-            name: "Test Customer",
-            email: "test@local.dev",
-          });
-        } else {
+        if (!user) {
           setAuthUserId(null);
           setHeaderUser(null);
+          return;
         }
+
+        setAuthUserId(user.id);
+
+        const fullName =
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          user.email?.split("@")[0] ||
+          "User";
+
+        setHeaderUser({
+          name: fullName,
+          email: user.email || "",
+          avatar: user.user_metadata?.avatar_url || undefined,
+        });
+      } catch (err) {
+        console.error("Failed to load signed-in user:", err);
+        setAuthUserId(null);
+        setHeaderUser(null);
       } finally {
         setLoadingUser(false);
       }
@@ -88,7 +67,7 @@ const CreateJob = () => {
 
   const createJobMutation = useMutation({
     mutationFn: createJob,
-    onSuccess: (newJob) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       queryClient.invalidateQueries({ queryKey: ["customerJobs"] });
 
@@ -96,7 +75,7 @@ const CreateJob = () => {
         description: "Your job has been saved to the platform.",
       });
 
-      navigate(`/jobs/${newJob.id}`);
+      navigate("/dashboard");
     },
     onError: (error: Error) => {
       toast.error("Failed to create job", {
@@ -114,7 +93,7 @@ const CreateJob = () => {
     budget: number | null;
   }) => {
     if (!authUserId) {
-      toast.error("No customer ID available. Add a temporary test profile ID or build sign-in.");
+      toast.error("You must be signed in to create a job.");
       return;
     }
 
@@ -136,13 +115,7 @@ const CreateJob = () => {
   }
 
   if (!headerUser) {
-    return (
-      <div className="p-6">
-        No signed-in user found. Add a temporary test profile ID in
-        <code className="mx-1">CreateJob.tsx</code>
-        or build the sign-in flow first.
-      </div>
-    );
+    return <div className="p-6">You must be signed in to create a job.</div>;
   }
 
   return (
