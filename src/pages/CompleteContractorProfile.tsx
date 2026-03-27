@@ -108,7 +108,7 @@ export default function CompleteContractorProfile() {
         return;
       }
 
-      navigate("/contractor-dashboard");
+      navigate("/contractordashboard");
     } catch (err) {
       console.error(err);
       alert("Failed to save contractor profile.");
