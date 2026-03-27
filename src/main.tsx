@@ -16,3 +16,4 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </React.StrictMode>
 );
+Why this fixes it
