@@ -1,11 +1,80 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAllJobs } from "@/services/jobService";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getAllJobs, getJobById } from "@/services/jobService";
 import { getContractorProfileById } from "@/services/contractorProfileService";
 import { createQuote, getQuotesByTradespersonId } from "@/services/quoteService";
 import { useAuth } from "@/context/AuthContext";
 import type { ContractorProfile, Job, Quote } from "@/types";
+
+function getQuoteStatusClass(status: string) {
+  if (status === "accepted") {
+    return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  }
+
+  if (status === "rejected" || status === "declined") {
+    return "bg-red-50 text-red-700 border border-red-200";
+  }
+
+  return "bg-amber-50 text-amber-700 border border-amber-200";
+}
+
+function getQuoteStatusLabel(status: string) {
+  if (status === "accepted") return "Accepted";
+  if (status === "rejected" || status === "declined") return "Rejected";
+  return "Pending";
+}
+
+type QuoteWithJob = {
+  quote: Quote;
+  job?: Job;
+};
+
+function QuoteStatusCard({
+  item,
+}: {
+  item: QuoteWithJob;
+}) {
+  const { quote, job } = item;
+  const statusClass = getQuoteStatusClass(quote.status);
+  const statusLabel = getQuoteStatusLabel(quote.status);
+
+  return (
+    <div className="bg-white rounded-xl border p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-lg font-semibold">
+              {job?.title || "Job"}
+            </h3>
+
+            <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusClass}`}>
+              {statusLabel}
+            </span>
+          </div>
+
+          <div className="mt-3 text-sm text-slate-500 space-y-1">
+            <div>Location: {job?.location || "Not set"}</div>
+            <div>Primary trade: {job?.primary_trade || "Not set"}</div>
+            <div>
+              Quote price:{" "}
+              {quote.price !== null && quote.price !== undefined
+                ? `€${quote.price}`
+                : "Not set"}
+            </div>
+            <div>Message: {quote.message || "No message"}</div>
+            <div>
+              Submitted:{" "}
+              {quote.created_at
+                ? new Date(quote.created_at).toLocaleString()
+                : "Not set"}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ContractorDashboard() {
   const queryClient = useQueryClient();
@@ -79,6 +148,55 @@ export default function ContractorDashboard() {
   const myQuotes = useMemo(() => myQuotesQuery.data ?? [], [myQuotesQuery.data]);
 
   const quotedJobIds = new Set(myQuotes.map((quote) => quote.job_id));
+
+  const pendingQuotes = useMemo(
+    () => myQuotes.filter((quote) => quote.status === "pending"),
+    [myQuotes]
+  );
+
+  const acceptedQuotes = useMemo(
+    () => myQuotes.filter((quote) => quote.status === "accepted"),
+    [myQuotes]
+  );
+
+  const rejectedQuotes = useMemo(
+    () =>
+      myQuotes.filter(
+        (quote) => quote.status === "rejected" || quote.status === "declined"
+      ),
+    [myQuotes]
+  );
+
+  const quoteJobQueries = useQueries({
+    queries: myQuotes.map((quote) => ({
+      queryKey: ["jobFromQuote", quote.job_id],
+      queryFn: () => getJobById(quote.job_id),
+      enabled: !!quote.job_id,
+    })),
+  });
+
+  const quotesWithJobs = useMemo(() => {
+    const jobMap: Record<string, Job | undefined> = {};
+
+    myQuotes.forEach((quote, index) => {
+      jobMap[quote.job_id] = quoteJobQueries[index]?.data as Job | undefined;
+    });
+
+    return {
+      pending: pendingQuotes.map((quote) => ({
+        quote,
+        job: jobMap[quote.job_id],
+      })),
+      accepted: acceptedQuotes.map((quote) => ({
+        quote,
+        job: jobMap[quote.job_id],
+      })),
+      rejected: rejectedQuotes.map((quote) => ({
+        quote,
+        job: jobMap[quote.job_id],
+      })),
+    };
+  }, [myQuotes, quoteJobQueries, pendingQuotes, acceptedQuotes, rejectedQuotes]);
 
   function updateQuoteDraft(jobId: string, field: "price" | "message", value: string) {
     setQuoteDrafts((prev) => ({
@@ -263,6 +381,60 @@ export default function ContractorDashboard() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">My Pending Quotes</h2>
+
+          {myQuotesQuery.isLoading ? (
+            <div className="bg-white rounded-xl border p-6">Loading quotes...</div>
+          ) : quotesWithJobs.pending.length === 0 ? (
+            <div className="bg-white rounded-xl border p-6">
+              You have no pending quotes.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {quotesWithJobs.pending.map((item) => (
+                <QuoteStatusCard key={item.quote.id} item={item} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">Accepted Quotes</h2>
+
+          {myQuotesQuery.isLoading ? (
+            <div className="bg-white rounded-xl border p-6">Loading quotes...</div>
+          ) : quotesWithJobs.accepted.length === 0 ? (
+            <div className="bg-white rounded-xl border p-6">
+              You have no accepted quotes yet.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {quotesWithJobs.accepted.map((item) => (
+                <QuoteStatusCard key={item.quote.id} item={item} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">Rejected Quotes</h2>
+
+          {myQuotesQuery.isLoading ? (
+            <div className="bg-white rounded-xl border p-6">Loading quotes...</div>
+          ) : quotesWithJobs.rejected.length === 0 ? (
+            <div className="bg-white rounded-xl border p-6">
+              You have no rejected quotes.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {quotesWithJobs.rejected.map((item) => (
+                <QuoteStatusCard key={item.quote.id} item={item} />
+              ))}
             </div>
           )}
         </section>
