@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/context/AuthContext";
 
 type FormState = {
   business_name: string;
@@ -11,10 +12,10 @@ type FormState = {
 
 export default function CompleteContractorProfile() {
   const navigate = useNavigate();
+  const { user, role, loading } = useAuth();
 
-  const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>({
     business_name: "",
@@ -26,19 +27,17 @@ export default function CompleteContractorProfile() {
   useEffect(() => {
     async function loadProfile() {
       try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
-
-        if (error) throw error;
+        if (loading) return;
 
         if (!user) {
-          navigate("/sign-in");
+          navigate("/sign-in", { replace: true });
           return;
         }
 
-        setUserId(user.id);
+        if (role !== "contractor") {
+          navigate("/dashboard", { replace: true });
+          return;
+        }
 
         const { data: profile, error: profileError } = await supabase
           .from("contractor_profiles")
@@ -61,12 +60,12 @@ export default function CompleteContractorProfile() {
       } catch (err) {
         console.error("Failed to load contractor profile:", err);
       } finally {
-        setLoading(false);
+        setPageLoading(false);
       }
     }
 
     loadProfile();
-  }, [navigate]);
+  }, [user, role, loading, navigate]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({
@@ -78,7 +77,7 @@ export default function CompleteContractorProfile() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!userId) {
+    if (!user?.id) {
       alert("You must be signed in.");
       return;
     }
@@ -99,7 +98,7 @@ export default function CompleteContractorProfile() {
           county: form.county.trim() || null,
           bio: form.bio.trim() || null,
         })
-        .eq("id", userId);
+        .eq("id", user.id);
 
       if (error) {
         console.error(error);
@@ -108,16 +107,16 @@ export default function CompleteContractorProfile() {
         return;
       }
 
-      navigate("/contractordashboard");
+      navigate("/contractor-dashboard", { replace: true });
     } catch (err) {
       console.error(err);
       alert("Failed to save contractor profile.");
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   }
 
-  if (loading) {
+  if (loading || pageLoading) {
     return <div className="p-6">Loading contractor profile...</div>;
   }
 

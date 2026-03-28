@@ -1,17 +1,31 @@
-import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SignIn() {
+  const navigate = useNavigate();
+  const { user, role, loading, refreshAuth } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const navigate = useNavigate();
+  useEffect(() => {
+    if (loading) return;
+
+    if (user) {
+      if (role === "contractor") {
+        navigate("/contractor-dashboard", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
+    }
+  }, [user, role, loading, navigate]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -21,22 +35,30 @@ export default function SignIn() {
 
       if (error) {
         alert(error.message);
-        setLoading(false);
+        setSubmitting(false);
         return;
       }
 
-      navigate("/");
+      await refreshAuth();
+      navigate("/", { replace: true });
     } catch (err) {
-      console.error(err);
+      console.error("Login failed:", err);
       alert("Login failed.");
+    } finally {
+      setSubmitting(false);
     }
+  }
 
-    setLoading(false);
+  if (loading) {
+    return <div className="p-6">Loading...</div>;
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <form onSubmit={handleLogin} className="space-y-4 w-80">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+      <form
+        onSubmit={handleLogin}
+        className="w-full max-w-sm space-y-4 rounded-xl border bg-white p-6 shadow-sm"
+      >
         <h1 className="text-2xl font-bold">Sign In</h1>
 
         <input
@@ -45,7 +67,7 @@ export default function SignIn() {
           value={email}
           onChange={(e)=>setEmail(e.target.value)}
           required
-          className="border p-2 w-full"
+          className="border p-2 w-full rounded"
         />
 
         <input
@@ -54,15 +76,15 @@ export default function SignIn() {
           value={password}
           onChange={(e)=>setPassword(e.target.value)}
           required
-          className="border p-2 w-full"
+          className="border p-2 w-full rounded"
         />
 
         <button
           type="submit"
-          disabled={loading}
-          className="bg-blue-600 text-white p-2 w-full rounded"
+          disabled={submitting}
+          className="bg-blue-600 text-white p-2 w-full rounded hover:bg-blue-700 disabled:opacity-60"
         >
-          {loading ? "Signing In..." : "Sign In"}
+          {submitting ? "Signing In..." : "Sign In"}
         </button>
 
         <p className="text-sm text-slate-600">
