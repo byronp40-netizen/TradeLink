@@ -26,6 +26,10 @@ function getJobProgressClass(job: Job, quoteCount: number) {
   return "bg-amber-50 text-amber-700 border border-amber-200";
 }
 
+function canEditJob(job: Job) {
+  return job.status !== "assigned" && job.status !== "completed";
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
@@ -149,12 +153,23 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      <Link
-                        to={`/jobs/${job.id}/quotes`}
-                        className="inline-flex justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                      >
-                        {quoteCount > 0 ? "View Quotes" : "Check Quotes"}
-                      </Link>
+                      <div className="flex flex-col gap-2">
+                        <Link
+                          to={`/jobs/${job.id}/quotes`}
+                          className="inline-flex justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                        >
+                          {quoteCount > 0 ? "View Quotes" : "Check Quotes"}
+                        </Link>
+
+                        {canEditJob(job) && (
+                          <Link
+                            to={`/jobs/${job.id}/edit`}
+                            className="inline-flex justify-center rounded-md bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                          >
+                            Edit Job
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

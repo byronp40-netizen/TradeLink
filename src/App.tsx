@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import Index from "@/pages/Index";
 import Dashboard from "@/pages/Dashboard";
 import CreateJob from "@/pages/CreateJob";
+import EditJob from "@/pages/EditJob";
 import JobDetail from "@/pages/JobDetail";
 import JobQuotes from "@/pages/JobQuotes";
 import ContractorDashboard from "@/pages/ContractorDashboard";
@@ -126,6 +127,15 @@ export default function App() {
           element={
             <CustomerRoute>
               <CreateJob />
+            </CustomerRoute>
+          }
+        />
+
+        <Route
+          path="/jobs/:jobId/edit"
+          element={
+            <CustomerRoute>
+              <EditJob />
             </CustomerRoute>
           }
         />
