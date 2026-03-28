@@ -51,7 +51,8 @@ export default function Dashboard() {
   const quoteQueries = useQueries({
     queries: jobs.map((job) => ({
       queryKey: ["quotesByJob", job.id],
-      queryFn: () => getQuotesByJobId(job.id),
+      queryFn: () => getQuotesByJobId(job.id
+),
       enabled: !!job.id,
     })),
   });
@@ -68,9 +69,7 @@ export default function Dashboard() {
   }, [jobs, quoteQueries]);
 
   const deleteJobMutation = useMutation({
-    mutationFn: async (jobId: string) => {
-      return deleteJob(jobId);
-    },
+    mutationFn: async (jobId: string) => deleteJob(jobId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       queryClient.invalidateQueries({ queryKey: ["customerJobs"] });
@@ -194,6 +193,13 @@ export default function Dashboard() {
                       </div>
 
                       <div className="flex flex-col gap-2">
+                        <Link
+                          to={`/jobs/${job.id}`}
+                          className="inline-flex justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                        >
+                          View Job
+                        </Link>
+
                         <Link
                           to={`/jobs/${job.id}/quotes`}
                           className="inline-flex justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"

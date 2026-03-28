@@ -30,11 +30,8 @@ type QuoteWithJob = {
   job?: Job;
 };
 
-function QuoteStatusCard({
-  item,
-}: {
-  item: QuoteWithJob;
-}) {
+function QuoteStatusCard({ item }: { item: QuoteWithJob }) {
+  const navigate = useNavigate();
   const { quote, job } = item;
   const statusClass = getQuoteStatusClass(quote.status);
   const statusLabel = getQuoteStatusLabel(quote.status);
@@ -44,9 +41,7 @@ function QuoteStatusCard({
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold">
-              {job?.title || "Job"}
-            </h3>
+            <h3 className="text-lg font-semibold">{job?.title || "Job"}</h3>
 
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusClass}`}>
               {statusLabel}
@@ -71,6 +66,16 @@ function QuoteStatusCard({
             </div>
           </div>
         </div>
+
+        {job?.id && (
+          <button
+            type="button"
+            onClick={() => navigate(`/jobs/${job.id}`)}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            View Job
+          </button>
+        )}
       </div>
     </div>
   );
@@ -319,21 +324,31 @@ export default function ContractorDashboard() {
 
                 return (
                   <div key={job.id} className="bg-white rounded-xl border p-5 shadow-sm space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">{job.title}</h3>
-                      <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold">{job.title}</h3>
+                        <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
 
-                      <div className="mt-3 text-sm text-slate-500 space-y-1">
-                        <div>Status: {job.status}</div>
-                        <div>Primary trade: {job.primary_trade || "Not set"}</div>
-                        <div>Location: {job.location || "Not set"}</div>
-                        <div>
-                          Budget:{" "}
-                          {job.budget !== null && job.budget !== undefined
-                            ? `€${job.budget}`
-                            : "Not set"}
+                        <div className="mt-3 text-sm text-slate-500 space-y-1">
+                          <div>Status: {job.status}</div>
+                          <div>Primary trade: {job.primary_trade || "Not set"}</div>
+                          <div>Location: {job.location || "Not set"}</div>
+                          <div>
+                            Budget:{" "}
+                            {job.budget !== null && job.budget !== undefined
+                              ? `€${job.budget}`
+                              : "Not set"}
+                          </div>
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/jobs/${job.id}`)}
+                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      >
+                        View Job
+                      </button>
                     </div>
 
                     <div className="border-t pt-4 space-y-3">
@@ -452,18 +467,30 @@ export default function ContractorDashboard() {
             <div className="grid gap-4">
               {assignedJobs.map((job) => (
                 <div key={job.id} className="bg-white rounded-xl border p-5 shadow-sm">
-                  <h3 className="text-lg font-semibold">{job.title}</h3>
-                  <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold">{job.title}</h3>
+                      <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
 
-                  <div className="mt-3 text-sm text-slate-500 space-y-1">
-                    <div>Status: {job.status}</div>
-                    <div>Location: {job.location || "Not set"}</div>
-                    <div>
-                      Accepted at:{" "}
-                      {job.accepted_at
-                        ? new Date(job.accepted_at).toLocaleString()
-                        : "Not set"}
+                      <div className="mt-3 text-sm text-slate-500 space-y-1">
+                        <div>Status: {job.status}</div>
+                        <div>Location: {job.location || "Not set"}</div>
+                        <div>
+                          Accepted at:{" "}
+                          {job.accepted_at
+                            ? new Date(job.accepted_at).toLocaleString()
+                            : "Not set"}
+                        </div>
+                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/jobs/${job.id}`)}
+                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      View Job
+                    </button>
                   </div>
                 </div>
               ))}
