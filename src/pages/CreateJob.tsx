@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import CustomerHeader from "@/components/layout/CustomerHeader";
 import CustomerFooter from "@/components/layout/CustomerFooter";
 import AIJobCreator from "@/components/jobs/AIJobCreator";
 import { createJob } from "@/services/jobService";
-import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/context/AuthContext";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -19,51 +19,17 @@ type HeaderUser = {
 const CreateJob = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user, loading } = useAuth();
 
-  const [authUserId, setAuthUserId] = useState<string | null>(null);
-  const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
-  const [loadingUser, setLoadingUser] = useState(true);
+  const headerUser = useMemo<HeaderUser | null>(() => {
+    if (!user) return null;
 
-  useEffect(() => {
-    async function loadUser() {
-      try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
-
-        if (error) throw error;
-
-        if (!user) {
-          setAuthUserId(null);
-          setHeaderUser(null);
-          return;
-        }
-
-        setAuthUserId(user.id);
-
-        const fullName =
-          user.user_metadata?.full_name ||
-          user.user_metadata?.name ||
-          user.email?.split("@")[0] ||
-          "User";
-
-        setHeaderUser({
-          name: fullName,
-          email: user.email || "",
-          avatar: user.user_metadata?.avatar_url || undefined,
-        });
-      } catch (err) {
-        console.error("Failed to load signed-in user:", err);
-        setAuthUserId(null);
-        setHeaderUser(null);
-      } finally {
-        setLoadingUser(false);
-      }
-    }
-
-    loadUser();
-  }, []);
+    return {
+      name: user.name,
+      email: user.email,
+      avatar: undefined,
+    };
+  }, [user]);
 
   const createJobMutation = useMutation({
     mutationFn: createJob,
@@ -92,7 +58,7 @@ const CreateJob = () => {
     location: string | null;
     budget: number | null;
   }) => {
-    if (!authUserId) {
+    if (!user?.id) {
       toast.error("You must be signed in to create a job.");
       return;
     }
@@ -100,7 +66,7 @@ const CreateJob = () => {
     createJobMutation.mutate({
       title: jobData.title,
       description: jobData.description,
-      customer_id: authUserId,
+      customer_id: user.id,
       trade_type: jobData.primary_trade,
       suggested_trades: jobData.suggested_trades,
       primary_trade: jobData.primary_trade,
@@ -110,7 +76,7 @@ const CreateJob = () => {
     });
   };
 
-  if (loadingUser) {
+  if (loading) {
     return <div className="p-6">Loading...</div>;
   }
 

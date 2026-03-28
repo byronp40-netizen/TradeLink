@@ -1,73 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabaseClient";
 import { getAllJobs } from "@/services/jobService";
 import { getContractorProfileById } from "@/services/contractorProfileService";
 import { createQuote, getQuotesByTradespersonId } from "@/services/quoteService";
+import { useAuth } from "@/context/AuthContext";
 import type { ContractorProfile, Job, Quote } from "@/types";
-
-type SignedInContractor = {
-  id: string;
-  email: string;
-  name: string;
-};
 
 export default function ContractorDashboard() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { user, loading, signOut } = useAuth();
 
-  const [contractorUser, setContractorUser] = useState<SignedInContractor | null>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [quoteDrafts, setQuoteDrafts] = useState<
     Record<string, { price: string; message: string }>
   >({});
 
-  useEffect(() => {
-    async function loadUser() {
-      try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
-
-        if (error) throw error;
-
-        if (!user) {
-          setContractorUser(null);
-          return;
-        }
-
-        setContractorUser({
-          id: user.id,
-          email: user.email || "",
-          name:
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            user.email?.split("@")[0] ||
-            "Contractor",
-        });
-      } catch (err) {
-        console.error("Failed to load contractor user:", err);
-        setContractorUser(null);
-      } finally {
-        setLoadingAuth(false);
-      }
-    }
-
-    loadUser();
-  }, []);
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    navigate("/sign-in");
-  }
-
   const contractorProfileQuery = useQuery<ContractorProfile>({
-    queryKey: ["contractorProfile", contractorUser?.id],
-    queryFn: () => getContractorProfileById(contractorUser!.id),
-    enabled: !!contractorUser?.id,
+    queryKey: ["contractorProfile", user?.id],
+    queryFn: () => getContractorProfileById(user!.id),
+    enabled: !!user?.id,
   });
 
   const jobsQuery = useQuery<Job[]>({
@@ -81,15 +34,15 @@ export default function ContractorDashboard() {
   });
 
   const assignedJobsQuery = useQuery<Job[]>({
-    queryKey: ["assignedJobs", contractorUser?.id],
-    queryFn: () => getAllJobs({ assigned_to: contractorUser!.id }),
-    enabled: !!contractorUser?.id,
+    queryKey: ["assignedJobs", user?.id],
+    queryFn: () => getAllJobs({ assigned_to: user!.id }),
+    enabled: !!user?.id,
   });
 
   const myQuotesQuery = useQuery<Quote[]>({
-    queryKey: ["myQuotes", contractorUser?.id],
-    queryFn: () => getQuotesByTradespersonId(contractorUser!.id),
-    enabled: !!contractorUser?.id,
+    queryKey: ["myQuotes", user?.id],
+    queryFn: () => getQuotesByTradespersonId(user!.id),
+    enabled: !!user?.id,
   });
 
   const createQuoteMutation = useMutation({
@@ -98,13 +51,13 @@ export default function ContractorDashboard() {
       price: number;
       message: string;
     }) => {
-      if (!contractorUser?.id) {
+      if (!user?.id) {
         throw new Error("No contractor ID available");
       }
 
       return createQuote({
         job_id: input.job_id,
-        tradesperson_id: contractorUser.id,
+        tradesperson_id: user.id,
         price: input.price,
         message: input.message,
       });
@@ -154,11 +107,16 @@ export default function ContractorDashboard() {
     });
   }
 
-  if (loadingAuth) {
+  async function handleSignOut() {
+    await signOut();
+    navigate("/sign-in");
+  }
+
+  if (loading) {
     return <div className="p-6">Loading contractor dashboard...</div>;
   }
 
-  if (!contractorUser) {
+  if (!user) {
     return <div className="p-6">You must be signed in to view this page.</div>;
   }
 
@@ -183,7 +141,7 @@ export default function ContractorDashboard() {
         <div className="bg-white rounded-xl shadow-sm border p-6 flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold">Contractor Dashboard</h1>
-            <p className="text-slate-600 mt-2">Welcome, {contractorUser.name}</p>
+            <p className="text-slate-600 mt-2">Welcome, {user.name}</p>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div className="rounded-lg border bg-slate-50 p-4">

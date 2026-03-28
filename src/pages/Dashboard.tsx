@@ -1,16 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabaseClient";
 import { getJobsByCustomerId } from "@/services/jobService";
 import { getQuotesByJobId } from "@/services/quoteService";
+import { useAuth } from "@/context/AuthContext";
 import type { Job, Quote } from "@/types";
-
-type SignedInCustomer = {
-  id: string;
-  email: string;
-  name: string;
-};
 
 function getJobProgressLabel(job: Job, quoteCount: number) {
   if (job.status === "assigned") return "Assigned";
@@ -33,54 +27,13 @@ function getJobProgressClass(job: Job, quoteCount: number) {
 }
 
 export default function Dashboard() {
-  const [customerUser, setCustomerUser] = useState<SignedInCustomer | null>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    async function loadUser() {
-      try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
-
-        if (error) throw error;
-
-        if (!user) {
-          setCustomerUser(null);
-          return;
-        }
-
-        setCustomerUser({
-          id: user.id,
-          email: user.email || "",
-          name:
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            user.email?.split("@")[0] ||
-            "Customer",
-        });
-      } catch (err) {
-        console.error("Failed to load customer user:", err);
-        setCustomerUser(null);
-      } finally {
-        setLoadingAuth(false);
-      }
-    }
-
-    loadUser();
-  }, []);
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    navigate("/sign-in");
-  }
+  const { user, loading, signOut } = useAuth();
 
   const customerJobsQuery = useQuery<Job[]>({
-    queryKey: ["customerJobs", customerUser?.id],
-    queryFn: () => getJobsByCustomerId(customerUser!.id),
-    enabled: !!customerUser?.id,
+    queryKey: ["customerJobs", user?.id],
+    queryFn: () => getJobsByCustomerId(user!.id),
+    enabled: !!user?.id,
   });
 
   const jobs = useMemo(() => customerJobsQuery.data ?? [], [customerJobsQuery.data]);
@@ -104,11 +57,16 @@ export default function Dashboard() {
     return map;
   }, [jobs, quoteQueries]);
 
-  if (loadingAuth) {
+  async function handleSignOut() {
+    await signOut();
+    navigate("/sign-in");
+  }
+
+  if (loading) {
     return <div className="p-6">Loading dashboard...</div>;
   }
 
-  if (!customerUser) {
+  if (!user) {
     return <div className="p-6">You must be signed in to view this page.</div>;
   }
 
@@ -118,7 +76,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl shadow-sm border p-6 flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold">Customer Dashboard</h1>
-            <p className="text-slate-600 mt-2">Welcome, {customerUser.name}</p>
+            <p className="text-slate-600 mt-2">Welcome, {user.name}</p>
 
             <div className="mt-4">
               <Link
@@ -181,9 +139,7 @@ export default function Dashboard() {
                               ? `€${job.budget}`
                               : "Not set"}
                           </div>
-                          <div>
-                            Quotes received: {quoteCount}
-                          </div>
+                          <div>Quotes received: {quoteCount}</div>
                           <div>
                             Created:{" "}
                             {job.created_at
