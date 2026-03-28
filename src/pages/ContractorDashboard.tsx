@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
-import { getAllJobs, updateJob } from "@/services/jobService";
+import { getAllJobs } from "@/services/jobService";
 import { getContractorProfileById } from "@/services/contractorProfileService";
 import { createQuote, getQuotesByTradespersonId } from "@/services/quoteService";
 import type { ContractorProfile, Job, Quote } from "@/types";
@@ -111,28 +111,6 @@ export default function ContractorDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["myQuotes"] });
-      setErrorMessage("");
-    },
-    onError: (error: Error) => {
-      setErrorMessage(error.message);
-    },
-  });
-
-  const moveAssignedMutation = useMutation({
-    mutationFn: async (jobId: string) => {
-      if (!contractorUser?.id) {
-        throw new Error("No contractor ID available");
-      }
-
-      return updateJob(jobId, {
-        status: "assigned",
-        assigned_to: contractorUser.id,
-        accepted_at: new Date().toISOString(),
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["openJobsForTrade"] });
-      queryClient.invalidateQueries({ queryKey: ["assignedJobs"] });
       setErrorMessage("");
     },
     onError: (error: Error) => {
@@ -256,32 +234,21 @@ export default function ContractorDashboard() {
 
                 return (
                   <div key={job.id} className="bg-white rounded-xl border p-5 shadow-sm space-y-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="text-lg font-semibold">{job.title}</h3>
-                        <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
+                    <div>
+                      <h3 className="text-lg font-semibold">{job.title}</h3>
+                      <p className="text-slate-600 mt-1">{job.description || "No description"}</p>
 
-                        <div className="mt-3 text-sm text-slate-500 space-y-1">
-                          <div>Status: {job.status}</div>
-                          <div>Primary trade: {job.primary_trade || "Not set"}</div>
-                          <div>Location: {job.location || "Not set"}</div>
-                          <div>
-                            Budget:{" "}
-                            {job.budget !== null && job.budget !== undefined
-                              ? `€${job.budget}`
-                              : "Not set"}
-                          </div>
+                      <div className="mt-3 text-sm text-slate-500 space-y-1">
+                        <div>Status: {job.status}</div>
+                        <div>Primary trade: {job.primary_trade || "Not set"}</div>
+                        <div>Location: {job.location || "Not set"}</div>
+                        <div>
+                          Budget:{" "}
+                          {job.budget !== null && job.budget !== undefined
+                            ? `€${job.budget}`
+                            : "Not set"}
                         </div>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => moveAssignedMutation.mutate(job.id)}
-                        disabled={moveAssignedMutation.isPending}
-                        className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
-                      >
-                        Accept Job
-                      </button>
                     </div>
 
                     <div className="border-t pt-4 space-y-3">
