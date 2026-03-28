@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabaseClient";
 import {
   getJobById,
   deleteJob,
@@ -84,6 +85,32 @@ export default function JobDetail() {
     enabled: !!jobId && !!user?.id && !!jobQuery.data?.assigned_to,
   });
 
+  useEffect(() => {
+    if (!jobId || !user?.id) return;
+
+    const channel = supabase
+      .channel(`messages-job-${jobId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          filter: `job_id=eq.${jobId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: ["messages", jobId, user.id],
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [jobId, user?.id, queryClient]);
+
   const deleteJobMutation = useMutation({
     mutationFn: async () => {
       if (!jobId) {
@@ -149,8 +176,7 @@ export default function JobDetail() {
         throw new Error("Messaging is only available once a contractor is assigned.");
       }
 
-      const recipientId =
-        user.id === job.customer_id ? job.assigned_to : job.customer_id;
+      const recipientId = user.id === job.customer_id ? job.assigned_to : job.customer_id;
 
       if (!recipientId) {
         throw new Error("Could not determine recipient.");
