@@ -203,12 +203,21 @@ export default function ContractorDashboard() {
             </div>
           </div>
 
-          <button
-            onClick={handleSignOut}
-            className="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700"
-          >
-            Sign Out
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigate("/edit-contractor-profile")}
+              className="bg-slate-700 text-white px-4 py-2 rounded text-sm hover:bg-slate-800"
+            >
+              Edit Profile
+            </button>
+
+            <button
+              onClick={handleSignOut}
+              className="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
 
         {errorMessage && (

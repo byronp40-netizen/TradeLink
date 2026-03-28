@@ -12,6 +12,7 @@ import JobDetail from "@/pages/JobDetail";
 import JobQuotes from "@/pages/JobQuotes";
 import ContractorDashboard from "@/pages/ContractorDashboard";
 import CompleteContractorProfile from "@/pages/CompleteContractorProfile";
+import EditContractorProfile from "@/pages/EditContractorProfile";
 import SignIn from "@/pages/SignIn";
 import SignUp from "@/pages/SignUp";
 import NotFound from "@/pages/NotFound";
@@ -122,7 +123,7 @@ function RootRedirect() {
   }
 
   if (role === "contractor") {
-    return <Navigate to="/contractorDashboard" replace />;
+    return <Navigate to="/contractor-dashboard" replace />;
   }
 
   return <Navigate to="/dashboard" replace />;
@@ -138,7 +139,7 @@ function CustomerRoute({ children }: { children: JSX.Element }) {
   }
 
   if (role !== "customer") {
-    return <Navigate to="/contractorDashboard" replace />;
+    return <Navigate to="/contractor-dashboard" replace />;
   }
 
   return children;
@@ -167,7 +168,7 @@ function PublicOnlyRoute({ children }: { children: JSX.Element }) {
 
   if (userId) {
     if (role === "contractor") {
-      return <Navigate to="/contractorDashboard" replace />;
+      return <Navigate to="/contractor-dashboard" replace />;
     }
 
     return <Navigate to="/dashboard" replace />;
@@ -184,6 +185,7 @@ export default function App() {
 
       <Routes>
         <Route path="/" element={<RootRedirect />} />
+        <Route path="/home" element={<Index />} />
 
         <Route
           path="/sign-in"
@@ -240,12 +242,17 @@ export default function App() {
         />
 
         <Route
-          path="/contractorDashboard"
+          path="/contractor-dashboard"
           element={
             <ContractorRoute>
               <ContractorDashboard />
             </ContractorRoute>
           }
+        />
+
+        <Route
+          path="/contractorDashboard"
+          element={<Navigate to="/contractor-dashboard" replace />}
         />
 
         <Route
@@ -257,7 +264,15 @@ export default function App() {
           }
         />
 
-        <Route path="/home" element={<Index />} />
+        <Route
+          path="/edit-contractor-profile"
+          element={
+            <ContractorRoute>
+              <EditContractorProfile />
+            </ContractorRoute>
+          }
+        />
+
         <Route path="*" element={<NotFound />} />
       </Routes>
     </TooltipProvider>
