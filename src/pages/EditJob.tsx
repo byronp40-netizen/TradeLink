@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { getJobById, updateJob } from "@/services/jobService";
+import { getJobById, updateJob, deleteJob } from "@/services/jobService";
 import type { Job } from "@/types";
 import { toast } from "sonner";
 
@@ -17,6 +17,10 @@ type EditJobForm = {
 };
 
 function canEditJob(job: Job) {
+  return job.status !== "assigned" && job.status !== "completed";
+}
+
+function canDeleteJob(job: Job) {
   return job.status !== "assigned" && job.status !== "completed";
 }
 
@@ -95,11 +99,51 @@ export default function EditJob() {
     },
   });
 
+  const deleteJobMutation = useMutation({
+    mutationFn: async () => {
+      if (!jobId) {
+        throw new Error("Missing job ID");
+      }
+
+      return deleteJob(jobId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["customerJobs"] });
+
+      toast.success("Job deleted", {
+        description: "The job has been removed successfully.",
+      });
+
+      navigate("/dashboard");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to delete job", {
+        description: error.message,
+      });
+    },
+  });
+
   function updateField<K extends keyof EditJobForm>(key: K, value: EditJobForm[K]) {
     setForm((prev) => ({
       ...prev,
       [key]: value,
     }));
+  }
+
+  function handleDelete(currentJob: Job) {
+    if (!canDeleteJob(currentJob)) {
+      toast.error("This job cannot be deleted.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${currentJob.title}"? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    deleteJobMutation.mutate();
   }
 
   if (loading) {
@@ -239,7 +283,7 @@ export default function EditJob() {
             />
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-wrap gap-3 pt-2">
             <button
               type="submit"
               disabled={updateJobMutation.isPending}
@@ -255,6 +299,17 @@ export default function EditJob() {
             >
               Cancel
             </button>
+
+            {canDeleteJob(job) && (
+              <button
+                type="button"
+                onClick={() => handleDelete(job)}
+                disabled={deleteJobMutation.isPending}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {deleteJobMutation.isPending ? "Deleting..." : "Delete Job"}
+              </button>
+            )}
           </div>
         </form>
       </div>

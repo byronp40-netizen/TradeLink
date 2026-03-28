@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { getJobsByCustomerId } from "@/services/jobService";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getJobsByCustomerId, deleteJob } from "@/services/jobService";
 import { getQuotesByJobId } from "@/services/quoteService";
 import { useAuth } from "@/context/AuthContext";
 import type { Job, Quote } from "@/types";
+import { toast } from "sonner";
 
 function getJobProgressLabel(job: Job, quoteCount: number) {
   if (job.status === "assigned") return "Assigned";
@@ -30,8 +31,13 @@ function canEditJob(job: Job) {
   return job.status !== "assigned" && job.status !== "completed";
 }
 
+function canDeleteJob(job: Job) {
+  return job.status !== "assigned" && job.status !== "completed";
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, loading, signOut } = useAuth();
 
   const customerJobsQuery = useQuery<Job[]>({
@@ -61,9 +67,43 @@ export default function Dashboard() {
     return map;
   }, [jobs, quoteQueries]);
 
+  const deleteJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      return deleteJob(jobId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["customerJobs"] });
+
+      toast.success("Job deleted", {
+        description: "The job has been removed successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to delete job", {
+        description: error.message,
+      });
+    },
+  });
+
   async function handleSignOut() {
     await signOut();
     navigate("/sign-in");
+  }
+
+  function handleDeleteJob(job: Job) {
+    if (!canDeleteJob(job)) {
+      toast.error("This job cannot be deleted.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${job.title}"? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    deleteJobMutation.mutate(job.id);
   }
 
   if (loading) {
@@ -168,6 +208,17 @@ export default function Dashboard() {
                           >
                             Edit Job
                           </Link>
+                        )}
+
+                        {canDeleteJob(job) && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteJob(job)}
+                            disabled={deleteJobMutation.isPending}
+                            className="inline-flex justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                          >
+                            Delete Job
+                          </button>
                         )}
                       </div>
                     </div>
