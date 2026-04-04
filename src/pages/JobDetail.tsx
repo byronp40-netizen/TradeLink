@@ -16,6 +16,11 @@ import {
   sendMessage,
   type Message,
 } from "@/services/messageService";
+import {
+  getJobImages,
+  getJobImageSignedUrls,
+  type JobImage,
+} from "@/services/jobImageService";
 import type { Job, Quote } from "@/types";
 import { toast } from "sonner";
 
@@ -83,6 +88,18 @@ export default function JobDetail() {
     queryKey: ["messages", jobId, user?.id],
     queryFn: () => getMessagesByJobId(jobId!, user!.id),
     enabled: !!jobId && !!user?.id && !!jobQuery.data?.assigned_to,
+  });
+
+  const jobImagesQuery = useQuery<JobImage[]>({
+    queryKey: ["jobImages", jobId],
+    queryFn: () => getJobImages(jobId!),
+    enabled: !!jobId,
+  });
+
+  const jobImageUrlsQuery = useQuery<Record<string, string>>({
+    queryKey: ["jobImageUrls", jobId, jobImagesQuery.data],
+    queryFn: () => getJobImageSignedUrls(jobImagesQuery.data || []),
+    enabled: !!jobImagesQuery.data && jobImagesQuery.data.length > 0,
   });
 
   useEffect(() => {
@@ -204,6 +221,8 @@ export default function JobDetail() {
 
   const quotes = useMemo(() => quotesQuery.data ?? [], [quotesQuery.data]);
   const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data]);
+  const jobImages = useMemo(() => jobImagesQuery.data ?? [], [jobImagesQuery.data]);
+  const imageUrls = useMemo(() => jobImageUrlsQuery.data ?? {}, [jobImageUrlsQuery.data]);
 
   const quoteCount = quotes.length;
 
@@ -339,6 +358,29 @@ export default function JobDetail() {
                     : "Not set"}
                 </div>
               </div>
+            </div>
+
+            <div className="bg-white rounded-xl border p-6 shadow-sm">
+              <h2 className="text-xl font-semibold">Issue Images</h2>
+
+              {jobImagesQuery.isLoading || jobImageUrlsQuery.isLoading ? (
+                <div className="mt-4 text-sm text-slate-600">Loading images...</div>
+              ) : jobImages.length === 0 ? (
+                <div className="mt-4 text-sm text-slate-600">No images uploaded.</div>
+              ) : (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {jobImages.map((image) => (
+                    <div key={image.id} className="space-y-2">
+                      <img
+                        src={imageUrls[image.id]}
+                        alt={image.filename}
+                        className="w-full rounded-lg border object-cover"
+                      />
+                      <div className="text-xs text-slate-500 break-all">{image.filename}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-xl border p-6 shadow-sm">
@@ -510,7 +552,7 @@ export default function JobDetail() {
                 </div>
                 <div>
                   <span className="font-medium text-slate-800">Assigned:</span>{" "}
-                  A contractor has been selected.
+                  You accepted a contractor quote.
                 </div>
                 <div>
                   <span className="font-medium text-slate-800">Completed:</span>{" "}

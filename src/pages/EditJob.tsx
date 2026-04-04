@@ -1,10 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { getJobById, updateJob, deleteJob } from "@/services/jobService";
+import {
+  getJobImages,
+  getJobImageSignedUrls,
+  uploadJobImage,
+  deleteJobImage,
+  type JobImage,
+} from "@/services/jobImageService";
 import type { Job } from "@/types";
 import { toast } from "sonner";
 
@@ -15,6 +22,9 @@ type EditJobForm = {
   location: string;
   budget: string;
 };
+
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_COUNT = 5;
 
 function canEditJob(job: Job) {
   return job.status !== "assigned" && job.status !== "completed";
@@ -38,10 +48,24 @@ export default function EditJob() {
     budget: "",
   });
 
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+
   const jobQuery = useQuery<Job>({
     queryKey: ["job", jobId],
     queryFn: () => getJobById(jobId!),
     enabled: !!jobId,
+  });
+
+  const jobImagesQuery = useQuery<JobImage[]>({
+    queryKey: ["jobImages", jobId],
+    queryFn: () => getJobImages(jobId!),
+    enabled: !!jobId,
+  });
+
+  const jobImageUrlsQuery = useQuery<Record<string, string>>({
+    queryKey: ["jobImageUrls", jobId, jobImagesQuery.data],
+    queryFn: () => getJobImageSignedUrls(jobImagesQuery.data || []),
+    enabled: !!jobImagesQuery.data && jobImagesQuery.data.length > 0,
   });
 
   useEffect(() => {
@@ -59,6 +83,9 @@ export default function EditJob() {
     });
   }, [jobQuery.data]);
 
+  const existingImages = useMemo(() => jobImagesQuery.data ?? [], [jobImagesQuery.data]);
+  const imageUrls = useMemo(() => jobImageUrlsQuery.data ?? {}, [jobImageUrlsQuery.data]);
+
   const updateJobMutation = useMutation({
     mutationFn: async () => {
       if (!jobId) {
@@ -72,7 +99,7 @@ export default function EditJob() {
         throw new Error("Budget must be a valid number.");
       }
 
-      return updateJob(jobId, {
+      const updatedJob = await updateJob(jobId, {
         title: form.title.trim(),
         description: form.description.trim() || null,
         primary_trade: form.primary_trade.trim().toLowerCase() || null,
@@ -80,17 +107,30 @@ export default function EditJob() {
         location: form.location.trim() || null,
         budget: parsedBudget,
       });
+
+      if (selectedImages.length > 0) {
+        for (const file of selectedImages) {
+          await uploadJobImage(jobId, file);
+        }
+      }
+
+      return updatedJob;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       queryClient.invalidateQueries({ queryKey: ["customerJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["jobImages", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobImageUrls", jobId] });
 
       toast.success("Job updated successfully", {
-        description: "Your job changes have been saved.",
+        description:
+          selectedImages.length > 0
+            ? "Your job changes and images have been saved."
+            : "Your job changes have been saved.",
       });
 
-      navigate("/dashboard");
+      navigate(`/jobs/${jobId}`);
     },
     onError: (error: Error) => {
       toast.error("Failed to update job", {
@@ -124,6 +164,25 @@ export default function EditJob() {
     },
   });
 
+  const deleteImageMutation = useMutation({
+    mutationFn: async ({ imageId, storagePath }: { imageId: string; storagePath: string }) => {
+      return deleteJobImage(imageId, storagePath);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobImages", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobImageUrls", jobId] });
+
+      toast.success("Image deleted", {
+        description: "The image has been removed successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to delete image", {
+        description: error.message,
+      });
+    },
+  });
+
   function updateField<K extends keyof EditJobForm>(key: K, value: EditJobForm[K]) {
     setForm((prev) => ({
       ...prev,
@@ -144,6 +203,43 @@ export default function EditJob() {
     if (!confirmed) return;
 
     deleteJobMutation.mutate();
+  }
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const validImages = files.filter((file) => {
+      const isImage = file.type.startsWith("image/");
+      const isUnderLimit = file.size <= MAX_IMAGE_SIZE_BYTES;
+      return isImage && isUnderLimit;
+    });
+
+    if (validImages.length !== files.length) {
+      toast.error("Some files were ignored", {
+        description: "Only image files up to 5MB are allowed.",
+      });
+    }
+
+    const remainingSlots = Math.max(0, MAX_IMAGE_COUNT - existingImages.length);
+
+    setSelectedImages((prev) => {
+      const combined = [...prev, ...validImages].slice(0, remainingSlots);
+
+      if (prev.length + validImages.length > remainingSlots) {
+        toast.error("Image limit reached", {
+          description: `You can have up to ${MAX_IMAGE_COUNT} images in total.`,
+        });
+      }
+
+      return combined;
+    });
+
+    e.target.value = "";
+  }
+
+  function removeSelectedImage(index: number) {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   }
 
   if (loading) {
@@ -190,6 +286,8 @@ export default function EditJob() {
     );
   }
 
+  const totalImageCount = existingImages.length + selectedImages.length;
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
@@ -203,7 +301,7 @@ export default function EditJob() {
 
           <h1 className="text-3xl font-bold">Edit Job</h1>
           <p className="text-slate-600">
-            Update your job details before a contractor is assigned.
+            Update your job details and supporting images before a contractor is assigned.
           </p>
         </div>
 
@@ -281,6 +379,90 @@ export default function EditJob() {
               className="w-full rounded-md border px-3 py-2 text-sm"
               placeholder="Optional"
             />
+          </div>
+
+          <div className="space-y-3 border-t pt-4">
+            <div>
+              <h2 className="text-lg font-semibold">Existing Images</h2>
+              <p className="text-sm text-slate-600">
+                Remove images you no longer want attached to this job.
+              </p>
+            </div>
+
+            {jobImagesQuery.isLoading || jobImageUrlsQuery.isLoading ? (
+              <div className="text-sm text-slate-600">Loading images...</div>
+            ) : existingImages.length === 0 ? (
+              <div className="text-sm text-slate-600">No images uploaded yet.</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {existingImages.map((image) => (
+                  <div key={image.id} className="rounded-lg border p-3 space-y-3">
+                    <img
+                      src={imageUrls[image.id]}
+                      alt={image.filename}
+                      className="w-full rounded-md border object-cover"
+                    />
+                    <div className="text-xs text-slate-500 break-all">{image.filename}</div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        deleteImageMutation.mutate({
+                          imageId: image.id,
+                          storagePath: image.storage_path,
+                        })
+                      }
+                      disabled={deleteImageMutation.isPending}
+                      className="rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-60"
+                    >
+                      Delete Image
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 border-t pt-4">
+            <div>
+              <h2 className="text-lg font-semibold">Add New Images</h2>
+              <p className="text-sm text-slate-600">
+                You can have up to {MAX_IMAGE_COUNT} images in total. Current total: {totalImageCount}
+              </p>
+            </div>
+
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageChange}
+              className="block w-full text-sm"
+            />
+
+            {selectedImages.length > 0 && (
+              <div className="space-y-2">
+                {selectedImages.map((file, index) => (
+                  <div
+                    key={`${file.name}-${index}`}
+                    className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">{file.name}</div>
+                      <div className="text-slate-500">
+                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeSelectedImage(index)}
+                      className="rounded-md bg-red-600 px-3 py-1 text-white hover:bg-red-700"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-3 pt-2">
